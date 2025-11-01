@@ -3,10 +3,13 @@ package com.ajmarcos.multiprobador;
 import static android.content.ContentValues.TAG;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
+import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.webkit.CookieManager;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
@@ -19,17 +22,17 @@ public class Hgu3505 {
     private boolean cancelado = false;
     private WebView webViewRef = null;
     private hguListener listener;
+    private AlertDialog dialog;
+    private Context context;
 
     private static final int TIMEOUT_MS = 30000; // 30s
     private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
     private final Runnable timeoutRunnable = () -> {
         if (!cancelado) {
             cancelar();
-            Log.d(TAG, "Timeout alcanzado, cancelando proceso (3505).");
+            Log.e(TAG, "❌ Timeout alcanzado, cancelando proceso (3505).");
         }
     };
-
-
 
     public interface hguListener {
         void onHguResult(boolean success, Resultado resultado, int code);
@@ -37,6 +40,10 @@ public class Hgu3505 {
 
     public void setHguListener(hguListener listener) {
         this.listener = listener;
+    }
+
+    public Hgu3505(Context ctx) {
+        this.context = ctx;
     }
 
     public void cancelar() {
@@ -57,9 +64,11 @@ public class Hgu3505 {
             }
         }
 
-        if (listener != null) {
-            listener.onHguResult(false, null, 999);
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
         }
+
+        if (listener != null) listener.onHguResult(false, null, 999);
     }
 
     private void runIfNotCancelled(Runnable task) {
@@ -76,23 +85,37 @@ public class Hgu3505 {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    public void scrap3505(WebView webView) {
+    public void scrap3505() {
         cancelado = false;
-        webViewRef = webView;
+
+        // Crear WebView internamente
+        webViewRef = new WebView(context);
+
+        // Mostrar WebView en diálogo
+        try {
+            AlertDialog.Builder builder = new AlertDialog.Builder(context);
+            builder.setTitle("🧭 WebView Debug (HGU3505)");
+            builder.setView(webViewRef);
+            builder.setPositiveButton("Cerrar", (d, w) -> d.dismiss());
+            dialog = builder.create();
+            dialog.show();
+        } catch (Exception e) {
+            Log.e(TAG, "⚠️ No se pudo mostrar WebView en diálogo: " + e.getMessage());
+        }
 
         timeoutHandler.removeCallbacks(timeoutRunnable);
         timeoutHandler.postDelayed(timeoutRunnable, TIMEOUT_MS);
 
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.getSettings().setDomStorageEnabled(true);
-        webView.clearCache(true);
-        webView.clearHistory();
-        webView.clearFormData();
+        webViewRef.getSettings().setJavaScriptEnabled(true);
+        webViewRef.getSettings().setDomStorageEnabled(true);
+        webViewRef.clearCache(true);
+        webViewRef.clearHistory();
+        webViewRef.clearFormData();
 
         CookieManager.getInstance().removeAllCookies(value ->
-                Log.d("Cookies", value ? "Todas las cookies eliminadas" : "No se pudieron eliminar todas las cookies"));
+                Log.d(TAG, value ? "🍪 Todas las cookies eliminadas" : "⚠️ No se pudieron eliminar cookies"));
 
-        webView.setWebViewClient(new WebViewClient() {
+        webViewRef.setWebViewClient(new WebViewClient() {
             private boolean isLoggedIn = false;
             private boolean isPPPExtracted = false;
             private boolean isTEInfoExtracted = false;
@@ -100,10 +123,12 @@ public class Hgu3505 {
             @Override
             public void onPageFinished(WebView view, String url) {
                 if (cancelado) return;
+                Log.d(TAG, "🌐 Página cargada: " + url);
 
                 runIfNotCancelled(() -> {
                     // 1. Login
                     if (!isLoggedIn && url.equals("http://192.168.1.1:8000/")) {
+                        Log.d(TAG, "🟡 Detectada pantalla de login. Intentando iniciar sesión...");
                         String loginScript = "try {" +
                                 "   var frame = document.getElementsByName('loginfrm')[0];" +
                                 "   var frameDoc = frame.contentDocument || frame.contentWindow.document;" +
@@ -112,29 +137,32 @@ public class Hgu3505 {
                                 "   frameDoc.querySelector('input[type=\\'submit\\']').click();" +
                                 "} catch (e) { console.error('Error login:', e); }";
 
-                        view.evaluateJavascript(loginScript, null);
+                        view.evaluateJavascript(loginScript, v -> Log.d(TAG, "▶ Script login ejecutado."));
                         isLoggedIn = true;
 
-                        webView.postDelayed(() -> runIfNotCancelled(() ->
-                                webView.loadUrl("http://192.168.1.1:8000/wanL3Edit.cmd?serviceId=1&wanIfName=ppp0.1&ntwkPrtcl=0")), 4000);
+                        webViewRef.postDelayed(() -> runIfNotCancelled(() ->
+                                webViewRef.loadUrl("http://192.168.1.1:8000/wanL3Edit.cmd?serviceId=1&wanIfName=ppp0.1&ntwkPrtcl=0")), 4000);
                     }
 
                     // 2. Extraer PPP User
                     else if (url.contains("wanL3Edit.cmd") && !isPPPExtracted) {
+                        Log.d(TAG, "📄 Extrayendo PPP User...");
                         String extractPPPUserScript =
                                 "document.querySelector('input[name=\\'pppUserName\\']')?.value || 'No disponible';";
 
                         view.evaluateJavascript(extractPPPUserScript, value -> runIfNotCancelled(() -> {
-                            resultado.usuario = filtrar((value != null) ? value.replace("\"", "") : "No disponible");
+                            resultado.setUsuario(filtrar((value != null) ? value.replace("\"", "") : "No disponible"));
+                            Log.d(TAG, "✅ Usuario PPP extraído: " + resultado.getUsuario());
                             isPPPExtracted = true;
 
-                            webView.postDelayed(() -> runIfNotCancelled(() ->
-                                    webView.loadUrl("http://192.168.1.1:8000/te_info.html")), 3000);
+                            webViewRef.postDelayed(() -> runIfNotCancelled(() ->
+                                    webViewRef.loadUrl("http://192.168.1.1:8000/te_info.html")), 3000);
                         }));
                     }
 
                     // 3. Extraer datos de te_info.html
                     else if (url.contains("te_info.html") && !isTEInfoExtracted) {
+                        Log.d(TAG, "📄 Extrayendo info de TE...");
                         String extractTEInfoScript =
                                 "var data = {};" +
                                         "try {" +
@@ -156,24 +184,25 @@ public class Hgu3505 {
                                 String jsonString = value.replace("\\\"", "\"").replace("\"{", "{").replace("}\"", "}");
                                 JSONObject jsonObject = new JSONObject(jsonString);
 
-                                resultado.firmware = filtrar(jsonObject.optString("Firmware", "No disponible"));
-                                resultado.serial = filtrar(jsonObject.optString("Serial", "No disponible"));
-                                resultado.potencia = filtrar(jsonObject.optString("Potencia", "No disponible"));
-                                resultado.ssid2 = filtrar(jsonObject.optString("Ssid2", "No disponible"));
-                                resultado.canal2 = filtrar(jsonObject.optString("Canal2", "No disponible"));
-                                resultado.estado2 = filtrar(jsonObject.optString("Estado2", "No disponible"));
-                                resultado.ssid5 = filtrar(jsonObject.optString("Ssid5", "No disponible"));
-                                resultado.canal5 = filtrar(jsonObject.optString("Canal5", "No disponible"));
-                                resultado.estado5 = filtrar(jsonObject.optString("Estado5", "No disponible"));
-                                resultado.voip = filtrar(jsonObject.optString("Voip", "No disponible"));
+                                resultado.setFirmware(filtrar(jsonObject.optString("Firmware", "No disponible")));
+                                resultado.setSerial(filtrar(jsonObject.optString("Serial", "No disponible")));
+                                resultado.setPotencia(filtrar(jsonObject.optString("Potencia", "No disponible")));
+                                resultado.setSsid2(filtrar(jsonObject.optString("Ssid2", "No disponible")));
+                                resultado.setCanal2(filtrar(jsonObject.optString("Canal2", "No disponible")));
+                                resultado.setEstado2(filtrar(jsonObject.optString("Estado2", "No disponible")));
+                                resultado.setSsid5(filtrar(jsonObject.optString("Ssid5", "No disponible")));
+                                resultado.setCanal5(filtrar(jsonObject.optString("Canal5", "No disponible")));
+                                resultado.setEstado5(filtrar(jsonObject.optString("Estado5", "No disponible")));
+                                resultado.setVoip(filtrar(jsonObject.optString("Voip", "No disponible")));
 
+                                Log.d(TAG, "🏁 Resultado final HGU3505: " + resultado.toString());
                                 isTEInfoExtracted = true;
+
                                 if (listener != null && !cancelado) {
                                     listener.onHguResult(true, resultado, 200);
                                 }
-
                             } catch (JSONException e) {
-                                Log.e("JSONError3505", "Error parseando JSON: " + e.getMessage());
+                                Log.e(TAG, "❌ Error parseando JSON: " + e.getMessage());
                                 if (listener != null && !cancelado) {
                                     listener.onHguResult(false, null, 500);
                                 }
@@ -184,7 +213,8 @@ public class Hgu3505 {
             }
         });
 
-        webView.loadUrl("http://192.168.1.1:8000/");
-
+        webViewRef.setWebChromeClient(new WebChromeClient());
+        Log.d(TAG, "🌍 Cargando página inicial HGU3505...");
+        webViewRef.loadUrl("http://192.168.1.1:8000/");
     }
 }

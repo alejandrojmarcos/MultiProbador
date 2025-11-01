@@ -3,8 +3,13 @@ package com.ajmarcos.multiprobador;
 import static android.content.ContentValues.TAG;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
+import android.content.Context;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
+import android.webkit.CookieManager;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
@@ -17,17 +22,17 @@ public class Hgu8115 implements Ssh8115.SshListener {
     private boolean cancelado = false;
     private WebView webViewRef = null;
     private hguListener listener;
+    private AlertDialog dialog;
+    private Context context;
 
     private static final int TIMEOUT_MS = 30000; // 30s
-    private final Handler timeoutHandler = new Handler();
+    private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
     private final Runnable timeoutRunnable = () -> {
         if (!cancelado) {
             cancelar();
-            Log.d(TAG, "Timeout alcanzado, cancelando proceso.");
+            Log.e(TAG, "❌ Timeout alcanzado, cancelando proceso (8115).");
         }
     };
-
-
 
     public interface hguListener {
         void onHguResult(boolean success, Resultado resultado, int code);
@@ -37,8 +42,16 @@ public class Hgu8115 implements Ssh8115.SshListener {
         this.listener = listener;
     }
 
+    public Hgu8115(Context ctx) {
+        this.context = ctx;
+    }
+
     public void cancelar() {
+        if (cancelado) return;
         cancelado = true;
+
+        timeoutHandler.removeCallbacks(timeoutRunnable);
+
         if (webViewRef != null) {
             try {
                 webViewRef.stopLoading();
@@ -50,7 +63,11 @@ public class Hgu8115 implements Ssh8115.SshListener {
                 Log.e(TAG, "Error deteniendo WebView: " + e.getMessage());
             }
         }
-        timeoutHandler.removeCallbacks(timeoutRunnable);
+
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
+        }
+
         if (listener != null) listener.onHguResult(false, null, 999);
     }
 
@@ -68,16 +85,34 @@ public class Hgu8115 implements Ssh8115.SshListener {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    public void scrap8115(WebView webView) {
+    public void scrap8115() {
         cancelado = false;
-        webViewRef = webView;
+
+        // Crear WebView internamente
+        webViewRef = new WebView(context);
+
+        // Mostrar WebView en diálogo
+        try {
+            AlertDialog.Builder builder = new AlertDialog.Builder(context);
+            builder.setTitle("🧭 WebView Debug (HGU8115)");
+            builder.setView(webViewRef);
+            builder.setPositiveButton("Cerrar", (d, w) -> d.dismiss());
+            dialog = builder.create();
+            dialog.show();
+        } catch (Exception e) {
+            Log.e(TAG, "⚠️ No se pudo mostrar WebView en diálogo: " + e.getMessage());
+        }
+
         timeoutHandler.removeCallbacks(timeoutRunnable);
         timeoutHandler.postDelayed(timeoutRunnable, TIMEOUT_MS);
 
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.getSettings().setDomStorageEnabled(true);
+        webViewRef.getSettings().setJavaScriptEnabled(true);
+        webViewRef.getSettings().setDomStorageEnabled(true);
 
-        webView.setWebViewClient(new WebViewClient() {
+        CookieManager.getInstance().removeAllCookies(value ->
+                Log.d(TAG, value ? "🍪 Cookies eliminadas correctamente" : "⚠️ No se pudieron eliminar cookies"));
+
+        webViewRef.setWebViewClient(new WebViewClient() {
             private boolean isLoggedIn = false;
             private boolean summaryExtracted = false;
             private boolean wanExtracted = false;
@@ -85,27 +120,28 @@ public class Hgu8115 implements Ssh8115.SshListener {
             @Override
             public void onPageFinished(WebView view, String url) {
                 if (cancelado) return;
+                Log.d(TAG, "🌐 Página cargada: " + url);
 
-                // Login
-                if (!isLoggedIn && url.contains("login.asp")) {
-                    view.postDelayed(() -> runIfNotCancelled(() -> {
+                runIfNotCancelled(() -> {
+                    // 1. Login
+                    if (!isLoggedIn && url.contains("login.asp")) {
+                        Log.d(TAG, "🟡 Detectada pantalla de login. Intentando iniciar sesión...");
                         String loginScript =
                                 "try {" +
                                         "document.getElementsByName('Username')[0].value='Support';" +
                                         "document.getElementsByName('Password')[0].value='Te2010An_2014Ma';" +
                                         "document.querySelector('input[type=\\'submit\\']').click();" +
                                         "} catch(e){ console.error(e); }";
-                        view.evaluateJavascript(loginScript, v ->
-                                view.postDelayed(() -> runIfNotCancelled(() -> webView.loadUrl("http://192.168.1.1:8000/summary.asp")), 2000)
-                        );
+                        view.evaluateJavascript(loginScript, v -> Log.d(TAG, "▶ Script login ejecutado."));
                         isLoggedIn = true;
-                    }), 3000);
-                    return;
-                }
 
-                // Extraer firmware y serial
-                if (isLoggedIn && !summaryExtracted && url.contains("summary.asp")) {
-                    view.postDelayed(() -> runIfNotCancelled(() -> {
+                        webViewRef.postDelayed(() -> runIfNotCancelled(() ->
+                                webViewRef.loadUrl("http://192.168.1.1:8000/summary.asp")), 2000);
+                    }
+
+                    // 2. Extraer firmware y serial
+                    else if (isLoggedIn && !summaryExtracted && url.contains("summary.asp")) {
+                        Log.d(TAG, "📄 Extrayendo Firmware y Serial...");
                         String extractScript =
                                 "try {" +
                                         "var firmware = document.evaluate('/html/body/table/tbody/tr[2]/td', document,null,XPathResult.STRING_TYPE,null).stringValue || 'No disponible';" +
@@ -117,21 +153,20 @@ public class Hgu8115 implements Ssh8115.SshListener {
                             try {
                                 value = value.replace("\\\"", "\"").replace("\"{", "{").replace("}\"", "}");
                                 JSONObject json = new JSONObject(value);
-                                resultado.firmware = filtrar(json.optString("Firmware","No disponible"));
-                                resultado.serial = filtrar(json.optString("Serial","No disponible"));
+                                resultado.setFirmware(filtrar(json.optString("Firmware", "No disponible")));
+                                resultado.setSerial(filtrar(json.optString("Serial", "No disponible")));
                                 summaryExtracted = true;
-                                webView.loadUrl("http://192.168.1.1:8000/wanintf.asp");
+                                Log.d(TAG, "✅ Firmware: " + resultado.getFirmware() + " | Serial: " + resultado.getSerial());
+                                webViewRef.loadUrl("http://192.168.1.1:8000/wanintf.asp");
                             } catch (JSONException e) {
-                                Log.e(TAG, "Error JSON summary: " + e.getMessage());
+                                Log.e(TAG, "❌ Error JSON summary: " + e.getMessage());
                             }
                         });
-                    }), 3000);
-                    return;
-                }
+                    }
 
-                // Extraer usuario PPP
-                if (summaryExtracted && !wanExtracted && url.contains("wanintf.asp")) {
-                    view.postDelayed(() -> runIfNotCancelled(() -> {
+                    // 3. Extraer usuario PPP
+                    else if (summaryExtracted && !wanExtracted && url.contains("wanintf.asp")) {
+                        Log.d(TAG, "📄 Extrayendo usuario PPP...");
                         String extractUser =
                                 "try {" +
                                         "var input = document.evaluate('/html/body/fieldset[2]/div/form/fieldset[2]/fieldset[1]/div[1]/input', document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue;" +
@@ -140,20 +175,24 @@ public class Hgu8115 implements Ssh8115.SshListener {
                         view.evaluateJavascript(extractUser, value -> {
                             if (cancelado) return;
                             value = value.replace("\"Username\"", "").replace("\\\"", "\"");
-                            resultado.usuario = filtrar(value);
+                            resultado.setUsuario(filtrar(value));
                             wanExtracted = true;
+                            Log.d(TAG, "✅ Usuario PPP: " + resultado.getUsuario());
                             startSsh();
                         });
-                    }), 3000);
-                }
+                    }
+                });
             }
         });
 
-        webView.loadUrl("http://192.168.1.1:8000/login.asp");
+        webViewRef.setWebChromeClient(new WebChromeClient()); // soporte JS completo
+        Log.d(TAG, "🌍 Cargando página inicial HGU8115...");
+        webViewRef.loadUrl("http://192.168.1.1:8000/login.asp");
     }
 
     private void startSsh() {
         if (cancelado) return;
+        Log.d(TAG, "🔑 Iniciando SSH...");
         Ssh8115 ssh = new Ssh8115();
         ssh.setSshListener(this);
         ssh.start();
@@ -165,18 +204,20 @@ public class Hgu8115 implements Ssh8115.SshListener {
         timeoutHandler.removeCallbacks(timeoutRunnable);
 
         if (success) {
-            // mapear campos uniformes
-            resultado.potencia = message[6];
-            resultado.ssid2 = message[0];
-            resultado.estado2 = message[2];
-            resultado.canal2 = message[1];
-            resultado.ssid5 = message[3];
-            resultado.estado5 = message[5];
-            resultado.canal5 = message[4];
-            resultado.voip = message[7]; // agregar VOIP
+            Log.d(TAG, "🏁 SSH completado. Mapeando campos...");
+            resultado.setPotencia(message.length > 6 ? message[6] : "");
+            resultado.setSsid2(message.length > 0 ? message[0] : "");
+            resultado.setEstado2(message.length > 2 ? message[2] : "");
+            resultado.setCanal2(message.length > 1 ? message[1] : "");
+            resultado.setSsid5(message.length > 3 ? message[3] : "");
+            resultado.setEstado5(message.length > 5 ? message[5] : "");
+            resultado.setCanal5(message.length > 4 ? message[4] : "");
+            resultado.setVoip(message.length > 7 ? message[7] : "");
 
+            Log.d(TAG, "🏁 Resultado final HGU8115: " + resultado.toString());
             if (listener != null) listener.onHguResult(true, resultado, 200);
         } else {
+            Log.e(TAG, "❌ SSH falló con código: " + code);
             if (listener != null) listener.onHguResult(false, null, 201);
         }
     }

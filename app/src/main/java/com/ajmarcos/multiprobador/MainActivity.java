@@ -9,10 +9,11 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
-    Button btn;
-    boolean[] puertosSeleccionados;
-    CheckBox[] arrayCheckBoxSeleccionPuerto;
-    TextView tvSalida;
+    private Button btnComenzar;
+    private Button btnEnviar;
+    private boolean[] puertosSeleccionados;
+    private CheckBox[] arrayCheckBoxSeleccionPuerto;
+    private TextView tvSalida;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -20,8 +21,6 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main_8);
 
         tvSalida = findViewById(R.id.tvSalida);
-
-        puertosSeleccionados = new boolean[8];
 
         arrayCheckBoxSeleccionPuerto = new CheckBox[]{
                 findViewById(R.id.cbPuerto01),
@@ -45,30 +44,27 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.button8)
         };
 
+        btnComenzar = findViewById(R.id.buttonComenzar);
+        btnEnviar   = findViewById(R.id.btnEnviar);
 
-        for (CheckBox cb : arrayCheckBoxSeleccionPuerto) {
-            cb.setChecked(true);
-        }
+        // marcar todos los checkboxes por defecto
+        for (CheckBox cb : arrayCheckBoxSeleccionPuerto) cb.setChecked(true);
 
-        btn = findViewById(R.id.buttonComenzar);
-        btn.setOnClickListener(v -> {
-            PortMap portMap = new PortMap();
+        puertosSeleccionados = new boolean[8];
 
+        PortMap portMap = new PortMap();
+        Prueba prueba = new Prueba(puertosSeleccionados, this, tvSalida, btnComenzar, btnEnviar, portMap);
 
+        // Listener del botón Comenzar
+        btnComenzar.setOnClickListener(v -> {
+            for (int i = 0; i < arrayCheckBoxSeleccionPuerto.length; i++) {
+                puertosSeleccionados[i] = arrayCheckBoxSeleccionPuerto[i].isChecked();
+            }
             portMap.apagarTodasLasIPs((success, salida) -> {
                 if (success) {
-                    Log.d("PORTMAP", "Todas las interfaces apagadas correctamente");
-
-                    for (int i = 0; i < arrayCheckBoxSeleccionPuerto.length; i++) {
-                        puertosSeleccionados[i] = arrayCheckBoxSeleccionPuerto[i].isChecked();
-                    }
-
-
-                    Prueba prueba = new Prueba(puertosSeleccionados, this, tvSalida, arrayBotonesPuerto, portMap);
-                    prueba.probar();
-
+                    runOnUiThread(() -> tvSalida.append("✅ Todas las interfaces apagadas.\n"));
+                    prueba.iniciar(); // método que empieza la prueba
                 } else {
-                    Log.e("PORTMAP", "Error al apagar interfaces");
                     runOnUiThread(() -> tvSalida.append("❌ Error apagando interfaces.\n"));
                 }
             });

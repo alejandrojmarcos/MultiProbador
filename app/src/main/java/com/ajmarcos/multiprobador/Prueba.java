@@ -1,6 +1,8 @@
 package com.ajmarcos.multiprobador;
 
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -9,6 +11,16 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.TextView;
 
+import com.google.gson.Gson;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+import androidx.core.content.FileProvider;
+
 public class Prueba {
 
     private final boolean[] puertosSeleccionados;
@@ -16,190 +28,152 @@ public class Prueba {
     private final TextView tvSalida;
     private final Handler mainHandler;
     private final PortMap portMap;
-    private final Button[] botones;
+    private final Button btnComenzar;
+    private final Button btnEnviar;
     private WebView webView;
 
     private int currentIndex = 0;  // Índice actual de puerto
+    private final ArrayList<Resultado> resultados = new ArrayList<>();
 
-    public Prueba(boolean[] puertosSeleccionados, Context context, TextView tvSalida, Button[] botones, PortMap portMap) {
+    public Prueba(boolean[] puertosSeleccionados, Context context, TextView tvSalida,
+                  Button btnComenzar, Button btnEnviar, PortMap portMap) {
         this.puertosSeleccionados = puertosSeleccionados;
         this.context = context;
         this.tvSalida = tvSalida;
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.portMap = portMap;
-        this.botones = botones;
+        this.btnComenzar = btnComenzar;
+        this.btnEnviar = btnEnviar;
 
-        // Crear WebView en el hilo principal
-            mainHandler.post(() -> {
+        btnComenzar.setOnClickListener(v -> {
+            btnComenzar.setEnabled(false);
+            btnEnviar.setEnabled(false);
+            resultados.clear();
+            currentIndex = 0;
+            ejecutarSiguientePuerto();
+        });
+
+        btnEnviar.setOnClickListener(v -> prepararInternetYEnviar());
+
+        mainHandler.post(() -> {
             webView = new WebView(context);
             webView.getSettings().setJavaScriptEnabled(true);
             webView.setWebViewClient(new WebViewClient() {
                 @Override
                 public void onPageFinished(WebView view, String url) {
-                    // hacer scraping
+                    // scraping
                 }
             });
         });
-
     }
 
-    public void probar() {
+    public void iniciar() {
         currentIndex = 0;
         ejecutarSiguientePuerto();
     }
 
     private void ejecutarSiguientePuerto() {
-        // Avanzar hasta el próximo puerto seleccionado
         while (currentIndex < puertosSeleccionados.length && !puertosSeleccionados[currentIndex]) {
             currentIndex++;
         }
 
         if (currentIndex >= puertosSeleccionados.length) {
             appendSalida("\n✅ Secuencia finalizada.\n");
+            mainHandler.post(() -> btnEnviar.setEnabled(true));
+            btnComenzar.setEnabled(true);
             return;
         }
 
         final int puerto = currentIndex;
         appendSalida("\n=== Configurando Puerto " + (puerto + 1) + " ===\n");
 
-        // Obtenemos la subinterfaz y IP correctas del puerto actual
         SubInterface si = portMap.getSubInterfaces()[puerto];
-        String ip = si.getIp();
-        String subInterfaz = si.getNombre();
-
-        portMap.levantarSubinterfaz(ip, subInterfaz, (success, salida) -> {
+        portMap.levantarSubinterfaz(si.getIp(), si.getNombre(), (success, salida) -> {
             if (!success) {
-                appendSalida("❌ Error levantando interfaz " + subInterfaz + " en " + ip + "\n");
+                appendSalida("❌ Error levantando interfaz " + si.getNombre() + " en " + si.getIp() + "\n");
                 currentIndex++;
                 ejecutarSiguientePuerto();
                 return;
             }
 
-            // Esperamos 2 segundos para estabilizar la conexión antes de SSH
             mainHandler.postDelayed(() -> ejecutarDeviceModel(puerto), 2000);
         });
     }
-
 
     private void ejecutarDeviceModel(int puerto) {
         Ssh ssh = new Ssh("192.168.1.1", "Support", "Te2010An_2014Ma");
         String[] comandos = {"show device_model"};
 
         ssh.setCommands(comandos);
-        ssh.setSshListener((success, message, code) -> {
-            mainHandler.post(() -> {
-                appendSalida("--- Resultado device_model Puerto " + (puerto + 1) + " ---\n");
+        ssh.setSshListener((success, message, code) -> mainHandler.post(() -> {
+            appendSalida("--- Resultado device_model Puerto " + (puerto + 1) + " ---\n");
+            String modelo = "Modelo desconocido";
+            if (success && message != null && message.length > 2 && !message[2].trim().isEmpty()) {
+                modelo = message[2].trim();
+            }
+            appendSalida(modelo + "\n");
 
-                if (success && message != null && message.length > 0) {
-                    for (String linea : message) appendSalida(linea + "\n");
-
-                    String modelo = (message.length > 2 && !message[2].trim().isEmpty()) ? message[2].trim() : "Modelo desconocido";
-
-                    if (puerto < botones.length && botones[puerto] != null) {
-                        botones[puerto].setText(modelo);
-                    }
-
-                    // Ejecutar scraping según modelo
-                    ejecutarScraperPorModelo(puerto, modelo);
-
-                } else {
-                    appendSalida("❌ Error ejecutando device_model en puerto " + (puerto + 1) + "\n");
-                    apagarYContinuar(puerto);
-                }
-            });
-        });
-
+            ejecutarScraperPorModelo(puerto, modelo);
+        }));
         ssh.start();
     }
 
-
-
-    private void appendSalida(String texto) {
-        mainHandler.post(() -> {
-            if (tvSalida != null) {
-                tvSalida.append(texto);
-                final int scrollAmount = tvSalida.getLayout().getLineTop(tvSalida.getLineCount()) - tvSalida.getHeight();
-                if (scrollAmount > 0)
-                    tvSalida.scrollTo(0, scrollAmount);
-                else
-                    tvSalida.scrollTo(0, 0);
-            }
-            Log.d("PRUEBA", texto);
-        });
-    }
     private void ejecutarScraperPorModelo(int puerto, String modelo) {
-        switch (modelo) {
-            case "2541": {
-                prepararWebView();
-                Hgu2541 hgu = new Hgu2541();
-                hgu.setHguListener((success, resultado, code) ->
-                        procesarResultadoScrap(puerto, modelo, success, resultado, code));
-                hgu.scrap2541(webView);
-                break;
-            }
-            case "2741": {
-                prepararWebView();
-                Hgu2741 hgu = new Hgu2741();
-                hgu.setHguListener((success, resultado, code) ->
-                        procesarResultadoScrap(puerto, modelo, success, resultado, code));
-                hgu.scrap2741(webView);
-                break;
-            }
-            case "2742": {
-                prepararWebView();
-                Hgu2742 hgu = new Hgu2742();
-                hgu.setHguListener((success, resultado, code) ->
-                        procesarResultadoScrap(puerto, modelo, success, resultado, code));
-                hgu.scrap2742(webView);
-                break;
-            }
-            case "3505": {
-                prepararWebView();
-                Hgu3505 hgu = new Hgu3505();
-                hgu.setHguListener((success, resultado, code) ->
-                        procesarResultadoScrap(puerto, modelo, success, resultado, code));
-                hgu.scrap3505(webView);
-                break;
-            }
-            case "8115": {
-                prepararWebView();
-                Hgu8115 hgu = new Hgu8115();
-                hgu.setHguListener((success, resultado, code) ->
-                        procesarResultadoScrap(puerto, modelo, success, resultado, code));
-                hgu.scrap8115(webView);
-                break;
-            }
-            case "8225": {
-                prepararWebView();
-                Hgu8225 hgu = new Hgu8225();
-                hgu.setHguListener((success, resultado, code) ->
-                        procesarResultadoScrap(puerto, modelo, success, resultado, code));
-                hgu.scrap8225(webView);
-                break;
-            }
-            default:
-                appendSalida("⚠️ Modelo no soportado: " + modelo + "\n");
-                apagarYContinuar(puerto);
-                break;
+        prepararWebView();
+        Runnable continuar = () -> apagarYContinuar(puerto);
+
+        if (modelo.contains("2541")) {
+            Hgu2541 hgu = new Hgu2541(context);
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.scrap2541();
+        } else if (modelo.contains("2741")) {
+            Hgu2741 hgu = new Hgu2741(context);
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.scrap2741();
+        } else if (modelo.contains("2742")) {
+            Hgu2742 hgu = new Hgu2742(context);
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.scrap2742();
+        } else if (modelo.contains("3505")) {
+            Hgu3505 hgu = new Hgu3505(context);
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.scrap3505();
+        } else if (modelo.contains("8115")) {
+            Hgu8115 hgu = new Hgu8115(context);
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.scrap8115();
+        } else if (modelo.contains("8225")) {
+            Hgu8225 hgu = new Hgu8225(context);
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.scrap8225();
+        } else {
+            appendSalida("⚠️ Modelo no soportado: " + modelo + "\n");
+            continuar.run();
         }
     }
-
 
     private void procesarResultadoScrap(int puerto, String modelo, boolean success, Resultado resultado, int code) {
+        if (resultado == null) resultado = new Resultado();
+
         if (success) {
             ValidadorResultado.ResultadoValidacion val = ValidadorResultado.validar(resultado);
-
             appendSalida("✅ Scrap OK [" + modelo + "] Puerto " + (puerto + 1) + "\n");
             appendSalida("Validación: " + val.getMensaje() + "\n");
-
-            cambiarColorBoton(puerto, val.getEstado());
-
         } else {
-            appendSalida("❌ Scrap falló [" + modelo + "] Puerto " + (puerto + 1) + " (code " + code + ")\n");
-            cambiarColorBoton(puerto, ValidadorResultado.EstadoValidacion.ERROR);
+            appendSalida("❌ Scrap falló [" + modelo + "] Puerto " + (puerto + 1) + "\n");
         }
 
+        resultados.add(resultado);
         apagarYContinuar(puerto);
+    }
+
+    private void apagarYContinuar(int puerto) {
+        SubInterface si = portMap.getSubInterfaces()[puerto];
+        portMap.apagarInterfacesPorIp(si.getIp(), (success, salida) -> {
+            appendSalida("Interfaces de " + si.getIp() + " apagadas\n");
+            currentIndex++;
+            ejecutarSiguientePuerto();
+        });
     }
 
     private void prepararWebView() {
@@ -213,39 +187,94 @@ public class Prueba {
         }
     }
 
-
-
-    private void apagarYContinuar(int puerto) {
-        String apagarIp = (puerto < 3) ? "192.168.1.241" : "192.168.1.242";
-        portMap.apagarInterfacesPorIp(apagarIp, (f, s) -> {
-            appendSalida("Interfaces de " + apagarIp + " apagadas\n");
-            currentIndex++;
-            ejecutarSiguientePuerto();
+    private void appendSalida(String texto) {
+        mainHandler.post(() -> {
+            if (tvSalida != null) {
+                tvSalida.append(texto + "\n");
+                int scrollAmount = tvSalida.getLayout().getLineTop(tvSalida.getLineCount()) - tvSalida.getHeight();
+                tvSalida.scrollTo(0, Math.max(scrollAmount, 0));
+            }
+            Log.d("PRUEBA", texto);
         });
     }
 
-    private void cambiarColorBoton(int puerto, ValidadorResultado.EstadoValidacion estado) {
-        if (puerto >= botones.length || botones[puerto] == null) return;
-
-        int color;
-        switch (estado) {
-            case OK:
-                color = 0xFF4CAF50; // Verde
-                break;
-            case WARNING:
-                color = 0xFFFFC107; // Amarillo
-                break;
-            case ERROR:
-            default:
-                color = 0xFFF44336; // Rojo
-                break;
-        }
-
-        final int finalColor = color;
-        mainHandler.post(() -> botones[puerto].setBackgroundColor(finalColor));
+    public ArrayList<Resultado> getResultados() {
+        return resultados;
     }
 
+    // -------------------------------------------------
+    // ENVIO DE RESULTADOS POR CORREO CON OUTLOOK
+    // -------------------------------------------------
+    public void prepararInternetYEnviar() {
+        String ipInternet = "192.168.1.230";
+        String subInterfaz = "eth3.0";
 
+        appendSalida("🌐 Activando interfaz de Internet: " + ipInternet + " / " + subInterfaz + "...\n");
 
+        portMap.levantarSubinterfaz(ipInternet, subInterfaz, (success, salida) -> {
+            if (success) {
+                appendSalida("✅ Interfaz activada. Verificando conectividad...\n");
+                mainHandler.postDelayed(() -> {
+                    if (tieneInternet()) {
+                        appendSalida("✅ Conexión a Internet OK. Abriendo Outlook...\n");
+                        enviarResultadosPorCorreo();
+                    } else {
+                        appendSalida("❌ No hay conexión a Internet. Reintentar.\n");
+                    }
+                }, 2000);
+            } else {
+                appendSalida("❌ Error activando la interfaz de Internet.\n");
+            }
+        });
+    }
 
+    private boolean tieneInternet() {
+        try {
+            Process p = Runtime.getRuntime().exec("ping -c 1 8.8.8.8");
+            int returnVal = p.waitFor();
+            return (returnVal == 0);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public void enviarResultadosPorCorreo() {
+        try {
+            // Generar ZIP de resultados
+            File zipFile = new File(context.getFilesDir(), "resultados.zip");
+            try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFile))) {
+                Gson gson = new Gson();
+                String json = gson.toJson(resultados);
+                ZipEntry entry = new ZipEntry("resultados.json");
+                zos.putNextEntry(entry);
+                zos.write(json.getBytes());
+                zos.closeEntry();
+            }
+
+            // URI usando FileProvider
+            Uri uri = FileProvider.getUriForFile(
+                    context,
+                    "com.ajmarcos.multiprobador.fileprovider",
+                    zipFile
+            );
+
+            // Intent para enviar a Outlook
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("application/zip");
+            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{"destinatario@tmoviles.com.ar"});
+            intent.putExtra(Intent.EXTRA_SUBJECT, "Resultados de prueba");
+            intent.putExtra(Intent.EXTRA_TEXT, "Adjunto los resultados de la prueba.");
+            intent.putExtra(Intent.EXTRA_STREAM, uri);
+            intent.setPackage("com.microsoft.office.outlook");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            context.startActivity(intent);
+            appendSalida("📧 Abriendo Outlook con el archivo adjunto...\n");
+
+        } catch (Exception e) {
+            Log.e("PRUEBA", "❌ Error preparando envío de correo", e);
+            appendSalida("❌ Error preparando envío de correo\n");
+        }
+    }
 }

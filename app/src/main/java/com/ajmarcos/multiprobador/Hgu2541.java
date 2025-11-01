@@ -3,6 +3,8 @@ package com.ajmarcos.multiprobador;
 import static android.content.ContentValues.TAG;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
+import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -21,10 +23,14 @@ public class Hgu2541 {
     private hguListener listener;
     private static final int TIMEOUT_MS = 30000; // 30s
     private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
+
+    private Context context;
+    private AlertDialog dialog;
+
     private final Runnable timeoutRunnable = () -> {
         if (!cancelado) {
             cancelar();
-            Log.d(TAG, "Timeout alcanzado, cancelando proceso (2541).");
+            Log.d(TAG, "❌ Timeout alcanzado, cancelando proceso (2541).");
         }
     };
 
@@ -34,6 +40,10 @@ public class Hgu2541 {
 
     public void setHguListener(hguListener listener) {
         this.listener = listener;
+    }
+
+    public Hgu2541(Context ctx) {
+        this.context = ctx;
     }
 
     public void cancelar() {
@@ -54,8 +64,16 @@ public class Hgu2541 {
             }
         }
 
+        dismissDialog();
+
         if (listener != null) {
             listener.onHguResult(false, null, 999);
+        }
+    }
+
+    private void dismissDialog() {
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
         }
     }
 
@@ -73,9 +91,12 @@ public class Hgu2541 {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    public void scrap2541(WebView webView) {
+    public void scrap2541() {
         cancelado = false;
-        webViewRef = webView;
+
+        // Crear WebView internamente
+        webViewRef = new WebView(context);
+        WebView webView = webViewRef;
 
         timeoutHandler.removeCallbacks(timeoutRunnable);
         timeoutHandler.postDelayed(timeoutRunnable, TIMEOUT_MS);
@@ -86,8 +107,20 @@ public class Hgu2541 {
         webView.clearHistory();
         webView.clearFormData();
 
+        // Mostrar WebView en diálogo
+        try {
+            AlertDialog.Builder builder = new AlertDialog.Builder(context);
+            builder.setTitle("🧭 WebView Debug (HGU2541)");
+            builder.setView(webView);
+            builder.setPositiveButton("Cerrar", (d, w) -> d.dismiss());
+            dialog = builder.create();
+            dialog.show();
+        } catch (Exception e) {
+            Log.e(TAG, "No se pudo mostrar el WebView en diálogo: " + e.getMessage());
+        }
+
         CookieManager.getInstance().removeAllCookies(value ->
-                Log.d("Cookies", value ? "Todas las cookies eliminadas" : "No se pudieron eliminar todas las cookies"));
+                Log.d(TAG, value ? "🍪 Todas las cookies eliminadas" : "⚠️ No se pudieron eliminar todas las cookies"));
 
         webView.setWebViewClient(new WebViewClient() {
             private boolean isLoggedIn = false;
@@ -111,7 +144,7 @@ public class Hgu2541 {
                                 "}" +
                                 "} catch(e) { console.error(e); }";
 
-                        view.evaluateJavascript(loginScript, null);
+                        view.evaluateJavascript(loginScript, v -> Log.d(TAG, "▶ Script login ejecutado"));
                         isLoggedIn = true;
 
                         webView.postDelayed(() ->
@@ -124,46 +157,46 @@ public class Hgu2541 {
                         isDeviceInfoExtracted = true;
 
                         String extractScript =
-                                "var data = {};" +
-                                        "try {" +
-                                        "data.Firmware = document.evaluate('/html/body/div/div[5]/div[1]/div[4]/div[4]/span', document, null, XPathResult.STRING_TYPE, null).stringValue || 'No disponible';" +
-                                        "data.Serial = document.evaluate('/html/body/div/div[5]/div[1]/div[4]/div[6]/span', document, null, XPathResult.STRING_TYPE, null).stringValue || 'No disponible';" +
-                                        "data.Potencia = document.evaluate('/html/body/div/div[5]/div[3]/div[2]/div[3]/span[1]', document, null, XPathResult.STRING_TYPE, null).stringValue || 'No disponible';" +
-                                        "data.Ssid2 = document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[3]/span', document, null, XPathResult.STRING_TYPE, null).stringValue || 'No disponible';" +
-                                        "data.Canal2 = document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[2]/span', document, null, XPathResult.STRING_TYPE, null).stringValue || 'No disponible';" +
-                                        "data.Estado2 = document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[1]/label', document, null, XPathResult.STRING_TYPE, null).stringValue || 'No disponible';" +
-                                        "data.Ssid5 = document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[8]/span', document, null, XPathResult.STRING_TYPE, null).stringValue || 'No disponible';" +
-                                        "data.Canal5 = document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[7]/span', document, null, XPathResult.STRING_TYPE, null).stringValue || 'No disponible';" +
-                                        "data.Estado5 = document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[6]/label', document, null, XPathResult.STRING_TYPE, null).stringValue || 'No disponible';" +
-                                        "data.Voip = document.evaluate('/html/body/div/div[5]/div[4]/div[2]/div[1]/span', document, null, XPathResult.STRING_TYPE, null).stringValue || 'No disponible';" +
+                                "var data={};" +
+                                        "try{" +
+                                        "data.Firmware=document.evaluate('/html/body/div/div[5]/div[1]/div[4]/div[4]/span', document, null, XPathResult.STRING_TYPE, null).stringValue||'No disponible';" +
+                                        "data.Serial=document.evaluate('/html/body/div/div[5]/div[1]/div[4]/div[6]/span', document, null, XPathResult.STRING_TYPE, null).stringValue||'No disponible';" +
+                                        "data.Potencia=document.evaluate('/html/body/div/div[5]/div[3]/div[2]/div[3]/span[1]', document, null, XPathResult.STRING_TYPE, null).stringValue||'No disponible';" +
+                                        "data.Ssid2=document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[3]/span', document, null, XPathResult.STRING_TYPE, null).stringValue||'No disponible';" +
+                                        "data.Canal2=document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[2]/span', document, null, XPathResult.STRING_TYPE, null).stringValue||'No disponible';" +
+                                        "data.Estado2=document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[1]/label', document, null, XPathResult.STRING_TYPE, null).stringValue||'No disponible';" +
+                                        "data.Ssid5=document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[8]/span', document, null, XPathResult.STRING_TYPE, null).stringValue||'No disponible';" +
+                                        "data.Canal5=document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[7]/span', document, null, XPathResult.STRING_TYPE, null).stringValue||'No disponible';" +
+                                        "data.Estado5=document.evaluate('/html/body/div/div[5]/div[2]/div[2]/div[6]/label', document, null, XPathResult.STRING_TYPE, null).stringValue||'No disponible';" +
+                                        "data.Voip=document.evaluate('/html/body/div/div[5]/div[4]/div[2]/div[1]/span', document, null, XPathResult.STRING_TYPE, null).stringValue||'No disponible';" +
                                         "JSON.stringify(data);" +
                                         "} catch(e){ console.error(e); JSON.stringify({Error:e.message}); }";
 
                         view.evaluateJavascript(extractScript, value -> runIfNotCancelled(() -> {
                             try {
                                 String jsonString = value.replace("\\\"", "\"").replace("\"{", "{").replace("}\"", "}");
-                                JSONObject jsonObject = new JSONObject(jsonString);
+                                JSONObject json = new JSONObject(jsonString);
 
-                                resultado.firmware = filtrar(jsonObject.optString("Firmware", "No disponible"));
-                                resultado.serial = filtrar(jsonObject.optString("Serial", "No disponible"));
-                                resultado.potencia = filtrar(jsonObject.optString("Potencia", "No disponible"));
-                                resultado.ssid2 = filtrar(jsonObject.optString("Ssid2", "No disponible"));
-                                resultado.canal2 = filtrar(jsonObject.optString("Canal2", "No disponible"));
-                                resultado.estado2 = filtrar(jsonObject.optString("Estado2", "No disponible"));
-                                resultado.ssid5 = filtrar(jsonObject.optString("Ssid5", "No disponible"));
-                                resultado.canal5 = filtrar(jsonObject.optString("Canal5", "No disponible"));
-                                resultado.estado5 = filtrar(jsonObject.optString("Estado5", "No disponible"));
-                                resultado.voip = filtrar(jsonObject.optString("Voip", "No disponible"));
+                                resultado.setFirmware(filtrar(json.optString("Firmware", "No disponible")));
+                                resultado.setSerial(filtrar(json.optString("Serial", "No disponible")));
+                                resultado.setPotencia(filtrar(json.optString("Potencia", "No disponible")));
+                                resultado.setSsid2(filtrar(json.optString("Ssid2", "No disponible")));
+                                resultado.setCanal2(filtrar(json.optString("Canal2", "No disponible")));
+                                resultado.setEstado2(filtrar(json.optString("Estado2", "No disponible")));
+                                resultado.setSsid5(filtrar(json.optString("Ssid5", "No disponible")));
+                                resultado.setCanal5(filtrar(json.optString("Canal5", "No disponible")));
+                                resultado.setEstado5(filtrar(json.optString("Estado5", "No disponible")));
+                                resultado.setVoip(filtrar(json.optString("Voip", "No disponible")));
+
+                                Log.d(TAG, "✅ Info dispositivo extraída: " + resultado.toString());
 
                                 webView.postDelayed(() ->
                                         runIfNotCancelled(() ->
                                                 webView.loadUrl("http://192.168.1.1:8000/multipuesto.cgi")), 3000);
 
                             } catch (JSONException e) {
-                                Log.e("JSONError2541", "Error parseando JSON: " + e.getMessage());
-                                if (listener != null && !cancelado) {
-                                    listener.onHguResult(false, null, 500);
-                                }
+                                Log.e(TAG, "❌ Error parseando JSON: " + e.getMessage());
+                                if (listener != null && !cancelado) listener.onHguResult(false, null, 500);
                             }
                         }));
                     }
@@ -172,10 +205,9 @@ public class Hgu2541 {
                     else if (url.contains("multipuesto.cgi")) {
                         String extractUserScript = "document.querySelector('input#pppUserName')?.value || 'N/A';";
                         view.evaluateJavascript(extractUserScript, value -> runIfNotCancelled(() -> {
-                            resultado.usuario = filtrar(value.replace("\"", ""));
-                            if (listener != null && !cancelado) {
-                                listener.onHguResult(true, resultado, 200);
-                            }
+                            resultado.setUsuario(filtrar(value.replace("\"", "")));
+                            Log.d(TAG, "🏁 Resultado final HGU2541: " + resultado.toString());
+                            if (listener != null && !cancelado) listener.onHguResult(true, resultado, 200);
                         }));
                     }
                 });
@@ -185,4 +217,3 @@ public class Hgu2541 {
         webView.loadUrl("http://192.168.1.1:8000/");
     }
 }
-

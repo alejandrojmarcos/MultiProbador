@@ -523,6 +523,15 @@
         android:layout_margin="4dp"
         android:background="@drawable/button_background_celeste2"
         android:text="Comenzar" />
+    <Button
+        android:id="@+id/btnEnviar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="4dp"
+        android:background="@drawable/button_background_celeste2"
+        android:text="Enviar"
+        android:enabled="false"/>
+
 
     <LinearLayout
         android:layout_width="match_parent"
