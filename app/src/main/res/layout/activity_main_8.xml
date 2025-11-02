@@ -521,16 +521,25 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="4dp"
-        android:background="@drawable/button_background_celeste2"
+        android:background="@drawable/button_background_verde"
         android:text="Comenzar" />
     <Button
-        android:id="@+id/btnEnviar"
+        android:id="@+id/buttonCancelar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="4dp"
+        android:background="@drawable/button_background_celeste2"
+        android:text="Cancelar"
+        android:enabled="false"/>
+    <Button
+        android:id="@+id/buttonEnviar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="4dp"
         android:background="@drawable/button_background_celeste2"
         android:text="Enviar"
         android:enabled="false"/>
+
 
 
     <LinearLayout

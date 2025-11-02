@@ -11,8 +11,10 @@ public class MainActivity extends AppCompatActivity {
 
     private Button btnComenzar;
     private Button btnEnviar;
+    private Button btnCancelar;
     private boolean[] puertosSeleccionados;
     private CheckBox[] arrayCheckBoxSeleccionPuerto;
+    private Button [] arrayBotonesPuerto;
     private TextView tvSalida;
 
     @Override
@@ -33,7 +35,7 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.cbPuerto08)
         };
 
-        Button[] arrayBotonesPuerto = new Button[]{
+        arrayBotonesPuerto = new Button[]{
                 findViewById(R.id.button1),
                 findViewById(R.id.button2),
                 findViewById(R.id.button3),
@@ -45,7 +47,8 @@ public class MainActivity extends AppCompatActivity {
         };
 
         btnComenzar = findViewById(R.id.buttonComenzar);
-        btnEnviar   = findViewById(R.id.btnEnviar);
+        btnEnviar = findViewById(R.id.buttonEnviar);
+        btnCancelar = findViewById(R.id.buttonCancelar);
 
         // marcar todos los checkboxes por defecto
         for (CheckBox cb : arrayCheckBoxSeleccionPuerto) cb.setChecked(true);
@@ -57,17 +60,62 @@ public class MainActivity extends AppCompatActivity {
 
         // Listener del botón Comenzar
         btnComenzar.setOnClickListener(v -> {
+            // Abrir diálogo de selección de lote y catálogo
+            mostrarDialogoLoteCatalogo(prueba, portMap);
+        });
+    }
+
+        private void mostrarDialogoLoteCatalogo(Prueba prueba, PortMap portMap) {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        builder.setTitle("Seleccionar lote de equipos");
+
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setPadding(50, 40, 50, 10);
+
+        android.widget.Spinner spinnerLote = new android.widget.Spinner(this);
+        String[] lotes = {"Lote A", "Lote B", "Lote C"};
+        android.widget.ArrayAdapter<String> adapterLote = new android.widget.ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, lotes);
+        adapterLote.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerLote.setAdapter(adapterLote);
+
+        android.widget.EditText etCatalogo = new android.widget.EditText(this);
+        etCatalogo.setHint("Ingrese catálogo");
+
+        layout.addView(spinnerLote);
+        layout.addView(etCatalogo);
+        builder.setView(layout);
+
+        builder.setPositiveButton("Aceptar", (dialog, which) -> {
+            String loteSeleccionado = spinnerLote.getSelectedItem().toString();
+            String catalogoSeleccionado = etCatalogo.getText().toString();
+
+            // Actualizamos los puertos seleccionados
             for (int i = 0; i < arrayCheckBoxSeleccionPuerto.length; i++) {
                 puertosSeleccionados[i] = arrayCheckBoxSeleccionPuerto[i].isChecked();
             }
+
+            // Guardamos lote y catálogo en la instancia de prueba
+            prueba.setLote(loteSeleccionado);
+            prueba.setCatalogo(catalogoSeleccionado);
+
+            // Apagamos interfaces y arrancamos la prueba
             portMap.apagarTodasLasIPs((success, salida) -> {
-                if (success) {
-                    runOnUiThread(() -> tvSalida.append("✅ Todas las interfaces apagadas.\n"));
-                    prueba.iniciar(); // método que empieza la prueba
-                } else {
-                    runOnUiThread(() -> tvSalida.append("❌ Error apagando interfaces.\n"));
-                }
+                runOnUiThread(() -> {
+                    if (success) {
+                        tvSalida.append("✅ Todas las interfaces apagadas.\n");
+                        prueba.iniciar(); // empieza la secuencia
+                    } else {
+                        tvSalida.append("❌ Error apagando interfaces.\n");
+                    }
+                });
             });
         });
+
+        builder.setNegativeButton("Cancelar", (dialog, which) -> dialog.dismiss());
+        builder.setCancelable(false);
+        builder.show();
     }
+
 }

@@ -1,5 +1,8 @@
 package com.ajmarcos.multiprobador;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 public class Resultado {
 
     // Campos existentes
@@ -15,12 +18,21 @@ public class Resultado {
     private String usuario = "";
     private String voip = "";
 
-    // Campos nuevos para seguimiento y validación
+    // Campos nuevos
     private String modelo;
     private int puerto;
     private String estadoValidacion;
     private String mensajeValidacion;
     private int codigo;
+
+    private String lote;
+    private String catalogo;
+
+    public String getLote() { return lote; }
+    public void setLote(String lote) { this.lote = lote; }
+
+    public String getCatalogo() { return catalogo; }
+    public void setCatalogo(String catalogo) { this.catalogo = catalogo; }
 
     // --- Getters y Setters ---
     public String getFirmware() { return firmware; }
@@ -76,6 +88,32 @@ public class Resultado {
                 ", estadoValidacion='" + estadoValidacion + '\'' +
                 ", mensajeValidacion='" + mensajeValidacion + '\'' +
                 ", codigo=" + codigo +
+                ", lote='" + lote + '\'' +
+                ", catalogo='" + catalogo + '\'' +
                 '}';
+    }
+
+    /** 🔹 Convierte el resultado en un mapa clave-valor para el JSON */
+    public Map<String, Object> toMap() {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("modelo", modelo);
+        map.put("serial", serial);
+        map.put("firmware", firmware);
+        map.put("potencia", potencia);
+        map.put("ssid2", ssid2);
+        map.put("estado2", estado2);
+        map.put("canal2", canal2);
+        map.put("ssid5", ssid5);
+        map.put("estado5", estado5);
+        map.put("canal5", canal5);
+        map.put("usuario", usuario);
+        map.put("voip", voip);
+        map.put("puerto", puerto);
+        map.put("estadoValidacion", estadoValidacion);
+        map.put("mensajeValidacion", mensajeValidacion);
+        map.put("codigo", codigo);
+        map.put("lote", lote);
+        map.put("catalogo", catalogo);
+        return map;
     }
 }

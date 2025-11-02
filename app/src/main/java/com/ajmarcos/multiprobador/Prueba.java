@@ -16,6 +16,7 @@ import com.google.gson.Gson;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -31,9 +32,22 @@ public class Prueba {
     private final Button btnComenzar;
     private final Button btnEnviar;
     private WebView webView;
+    private String lote = "";
+    private String catalogo = "";
+
 
     private int currentIndex = 0;  // Índice actual de puerto
     private final ArrayList<Resultado> resultados = new ArrayList<>();
+
+
+    public void setLote(String lote) {
+        this.lote = lote;
+    }
+
+    public void setCatalogo(String catalogo) {
+        this.catalogo = catalogo;
+    }
+
 
     public Prueba(boolean[] puertosSeleccionados, Context context, TextView tvSalida,
                   Button btnComenzar, Button btnEnviar, PortMap portMap) {
@@ -163,6 +177,11 @@ public class Prueba {
             appendSalida("❌ Scrap falló [" + modelo + "] Puerto " + (puerto + 1) + "\n");
         }
 
+
+        resultado.setLote(lote);
+        resultado.setCatalogo(catalogo);
+
+
         resultados.add(resultado);
         apagarYContinuar(puerto);
     }
@@ -209,24 +228,20 @@ public class Prueba {
         String ipInternet = "192.168.1.230";
         String subInterfaz = "eth3.0";
 
-        appendSalida("🌐 Activando interfaz de Internet: " + ipInternet + " / " + subInterfaz + "...\n");
+        appendSalida("🌐 Verificando conectividad en interfaz: " + ipInternet + " / " + subInterfaz + "...\n");
 
-        portMap.levantarSubinterfaz(ipInternet, subInterfaz, (success, salida) -> {
-            if (success) {
-                appendSalida("✅ Interfaz activada. Verificando conectividad...\n");
-                mainHandler.postDelayed(() -> {
-                    if (tieneInternet()) {
-                        appendSalida("✅ Conexión a Internet OK. Abriendo Outlook...\n");
-                        enviarResultadosPorCorreo();
-                    } else {
-                        appendSalida("❌ No hay conexión a Internet. Reintentar.\n");
-                    }
-                }, 2000);
+        mainHandler.postDelayed(() -> {
+            if (tieneInternet()) {
+                appendSalida("✅ Conexión a Internet OK. Abriendo Outlook...\n");
+                enviarResultadosPorCorreo(); // abrir Outlook con el ZIP
             } else {
-                appendSalida("❌ Error activando la interfaz de Internet.\n");
+                appendSalida("❌ No hay conexión a Internet. Reintentar.\n");
             }
-        });
+        }, 2000); // espera 2 segundos por si la interfaz recién se estabiliza
     }
+
+
+
 
     private boolean tieneInternet() {
         try {
@@ -243,9 +258,19 @@ public class Prueba {
         try {
             // Generar ZIP de resultados
             File zipFile = new File(context.getFilesDir(), "resultados.zip");
+
             try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFile))) {
                 Gson gson = new Gson();
-                String json = gson.toJson(resultados);
+
+                // Convertir cada Resultado en un Map (clave-valor)
+                ArrayList<Map<String, Object>> listaMap = new ArrayList<>();
+                for (Resultado r : resultados) {
+                    listaMap.add(r.toMap());
+                }
+
+                // Generar JSON ordenado y legible
+                String json = gson.toJson(listaMap);
+
                 ZipEntry entry = new ZipEntry("resultados.json");
                 zos.putNextEntry(entry);
                 zos.write(json.getBytes());
@@ -262,7 +287,7 @@ public class Prueba {
             // Intent para enviar a Outlook
             Intent intent = new Intent(Intent.ACTION_SEND);
             intent.setType("application/zip");
-            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{"destinatario@tmoviles.com.ar"});
+            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{"alejandro.marcos@tmoviles.com.ar"});
             intent.putExtra(Intent.EXTRA_SUBJECT, "Resultados de prueba");
             intent.putExtra(Intent.EXTRA_TEXT, "Adjunto los resultados de la prueba.");
             intent.putExtra(Intent.EXTRA_STREAM, uri);
@@ -277,4 +302,5 @@ public class Prueba {
             appendSalida("❌ Error preparando envío de correo\n");
         }
     }
+
 }
