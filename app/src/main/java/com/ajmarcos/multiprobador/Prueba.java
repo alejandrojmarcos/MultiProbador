@@ -10,11 +10,16 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.TextView;
+import net.lingala.zip4j.ZipFile;
+import net.lingala.zip4j.model.ZipParameters;
+import net.lingala.zip4j.model.enums.EncryptionMethod;
 
 import com.google.gson.Gson;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.zip.ZipEntry;
@@ -32,17 +37,11 @@ public class Prueba {
     private final Button btnComenzar;
     private final Button btnEnviar;
     private WebView webView;
-    private String lote = "";
     private String catalogo = "";
 
 
     private int currentIndex = 0;  // Índice actual de puerto
     private final ArrayList<Resultado> resultados = new ArrayList<>();
-
-
-    public void setLote(String lote) {
-        this.lote = lote;
-    }
 
     public void setCatalogo(String catalogo) {
         this.catalogo = catalogo;
@@ -178,7 +177,7 @@ public class Prueba {
         }
 
 
-        resultado.setLote(lote);
+
         resultado.setCatalogo(catalogo);
 
 
@@ -256,51 +255,88 @@ public class Prueba {
 
     public void enviarResultadosPorCorreo() {
         try {
-            // Generar ZIP de resultados
-            File zipFile = new File(context.getFilesDir(), "resultados.zip");
+            // 1️⃣ Generar CSV
+            String csvFileName = "Resultados_" + System.currentTimeMillis() + ".csv";
+            File csvFile = new File(context.getFilesDir(), csvFileName);
 
-            try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFile))) {
-                Gson gson = new Gson();
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile))) {
+                // Cabeceras
+                String[] headers = {
+                        "fecha", "serial", "firmware", "potencia",
+                        "ssid2", "estado2", "canal2","rssi2",
+                        "ssid5", "estado5", "canal5","rssi5",
+                        "usuario", "voip",
+                        "catalogo", "falla", "condicion", "multiprobador"
+                };
+                writer.write(String.join(",", headers));
+                writer.newLine();
 
-                // Convertir cada Resultado en un Map (clave-valor)
-                ArrayList<Map<String, Object>> listaMap = new ArrayList<>();
+                // Filas de resultados
                 for (Resultado r : resultados) {
-                    listaMap.add(r.toMap());
+                    String[] values = {
+                            r.getFecha(), r.getSerial(), r.getFirmware(), r.getPotencia(),
+                            r.getSsid2(), r.getEstado2(), r.getCanal2(), r.getRssi2(),
+                            r.getSsid5(), r.getEstado5(), r.getCanal5(), r.getRssi5(),
+                            r.getUsuario(), r.getVoip(),
+                            r.getCatalogo(), r.getFalla(), r.getCondicion(), r.getMultiprobador()
+                    };
+
+                    for (int i = 0; i < values.length; i++) {
+                        if (values[i] != null) {
+                            values[i] = values[i].replace("\"", "\"\"");
+                            if (values[i].contains(",") || values[i].contains("\"") || values[i].contains("\n")) {
+                                values[i] = "\"" + values[i] + "\"";
+                            }
+                        } else {
+                            values[i] = "";
+                        }
+                    }
+
+                    writer.write(String.join(",", values));
+                    writer.newLine();
                 }
-
-                // Generar JSON ordenado y legible
-                String json = gson.toJson(listaMap);
-
-                ZipEntry entry = new ZipEntry("resultados.json");
-                zos.putNextEntry(entry);
-                zos.write(json.getBytes());
-                zos.closeEntry();
             }
 
-            // URI usando FileProvider
+            // 2️⃣ Comprimir CSV en ZIP con contraseña
+            File zipFile = new File(context.getFilesDir(), "Resultados.zip");
+            ZipFile zip = new ZipFile(zipFile, "abcdef12345".toCharArray());
+
+            ZipParameters parameters = new ZipParameters();
+            parameters.setEncryptFiles(true);
+            parameters.setEncryptionMethod(EncryptionMethod.ZIP_STANDARD);
+
+            // Solo el nombre del CSV dentro del ZIP, sin carpeta
+            parameters.setFileNameInZip("Resultados.csv");
+
+            zip.addFile(csvFile, parameters);
+
+            // 3️⃣ Preparar Intent para enviar por Outlook
             Uri uri = FileProvider.getUriForFile(
                     context,
                     "com.ajmarcos.multiprobador.fileprovider",
                     zipFile
             );
 
-            // Intent para enviar a Outlook
             Intent intent = new Intent(Intent.ACTION_SEND);
             intent.setType("application/zip");
-            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{"alejandro.marcos@tmoviles.com.ar"});
+            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{"alejandro.marcos@tmoviles.com.ar","andresm.fernandez@tmoviles.com.ar"});
             intent.putExtra(Intent.EXTRA_SUBJECT, "Resultados de prueba");
-            intent.putExtra(Intent.EXTRA_TEXT, "Adjunto los resultados de la prueba.");
+            intent.putExtra(Intent.EXTRA_TEXT, "Adjunto los resultados de la prueba en CSV comprimido.");
             intent.putExtra(Intent.EXTRA_STREAM, uri);
             intent.setPackage("com.microsoft.office.outlook");
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
             context.startActivity(intent);
-            appendSalida("📧 Abriendo Outlook con el archivo adjunto...\n");
+            appendSalida("📧 Abriendo Outlook con el ZIP protegido...\n");
+
+            // Opcional: borrar el CSV temporal después de crear el ZIP
+            csvFile.delete();
 
         } catch (Exception e) {
             Log.e("PRUEBA", "❌ Error preparando envío de correo", e);
             appendSalida("❌ Error preparando envío de correo\n");
         }
     }
+
 
 }

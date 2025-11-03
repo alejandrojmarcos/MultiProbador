@@ -13,7 +13,13 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 public class Hgu8225 implements Ssh8225.SshListener {
+
+    private boolean sshStarted = false;
+    private boolean usuarioExtracted = false;
 
     private String usuario = "";
     private String firmware = "";
@@ -95,6 +101,9 @@ public class Hgu8225 implements Ssh8225.SshListener {
     public void scrap8225() {
         cancelado = false;
 
+        // Activar timeout
+        timeoutHandler.postDelayed(timeoutRunnable, TIMEOUT_MS);
+
         // Crear WebView internamente
         webViewRef = new WebView(context);
         webViewRef.getSettings().setJavaScriptEnabled(true);
@@ -170,7 +179,6 @@ public class Hgu8225 implements Ssh8225.SshListener {
                         view.evaluateJavascript(extractScript, value -> {
                             if (cancelado) return;
                             try {
-                                // Parseo seguro
                                 String clean = value.replace("\\\"", "\"").replace("\"{", "{").replace("}\"", "}");
                                 String fw = "No disponible";
                                 String sn = "No disponible";
@@ -206,8 +214,8 @@ public class Hgu8225 implements Ssh8225.SshListener {
                 }
 
                 // Extraer usuario PPP
-                // Extraer usuario PPP
                 if (summaryExtracted && !wanExtracted && url.contains("wanintf.asp")) {
+                    wanExtracted = true; // <- marcar al inicio para evitar repeticiones
                     view.postDelayed(() -> runIfNotCancelled(() -> {
                         String clickAndExtractUser =
                                 "try {" +
@@ -226,16 +234,14 @@ public class Hgu8225 implements Ssh8225.SshListener {
                                         "           console.log('❌ No se encontró campo username tras clic.');" +
                                         "           window._usernameFound = JSON.stringify({Found:false});" +
                                         "       }" +
-                                        "   }, 3000);" +  // espera 3s tras el clic
+                                        "   }, 3000);" +
                                         "} else {" +
                                         "   console.log('❌ Enlace WAN no encontrado.');" +
                                         "   window._usernameFound = JSON.stringify({Found:false, Error:'No link found'});" +
                                         "}" +
                                         "} catch(e){ window._usernameFound = JSON.stringify({Error:e.message}); }";
 
-                        // Ejecutar el clic + búsqueda
                         view.evaluateJavascript(clickAndExtractUser, v -> {
-                            // Esperamos 4s más y luego recogemos el resultado global
                             view.postDelayed(() -> view.evaluateJavascript("window._usernameFound;", value -> {
                                 if (cancelado) return;
                                 try {
@@ -248,10 +254,17 @@ public class Hgu8225 implements Ssh8225.SshListener {
                                         if (colon >= 0 && end >= 0)
                                             extracted = clean.substring(colon + 1, end).replace("\"", "").trim();
                                     }
-                                    usuario = filtrar(extracted);
-                                    Log.d(TAG, "✅ Usuario PPP extraído tras clic: " + usuario);
-                                    wanExtracted = true;
-                                    startSsh();
+                                    if (!usuarioExtracted) {
+                                        usuario = filtrar(extracted);
+                                        Log.d(TAG, "✅ Usuario PPP extraído tras clic: " + usuario);
+                                        usuarioExtracted = true;
+
+                                        if (!sshStarted) {
+                                            sshStarted = true;
+                                            Log.d(TAG, "🔐 Iniciando conexión SSH para obtener datos adicionales...");
+                                            startSsh();
+                                        }
+                                    }
                                 } catch (Exception e) {
                                     Log.e(TAG, "❌ Error parseando usuario PPP tras clic: " + e.getMessage());
                                 }
@@ -279,25 +292,37 @@ public class Hgu8225 implements Ssh8225.SshListener {
 
     @Override
     public void onSsh8225Result(boolean success, String[] message, int code) {
+
+        for(String m : message){
+            Log.d(TAG, "✅ Resultado SSH recibido: " + m);
+        }
+
+
         if (cancelado) return;
         timeoutHandler.removeCallbacks(timeoutRunnable);
 
         Log.d(TAG, "📡 Resultado SSH recibido: success=" + success + " | code=" + code);
 
         if (success) {
+            resultado.setFecha(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
             resultado.setFirmware(firmware);
             resultado.setSerial(serial);
             resultado.setPotencia(message.length > 6 ? message[6] : "");
             resultado.setSsid2(message.length > 0 ? message[0] : "");
             resultado.setEstado2(message.length > 2 ? message[2] : "");
             resultado.setCanal2(message.length > 1 ? message[1] : "");
+            resultado.setRssi2("-50");
             resultado.setSsid5(message.length > 3 ? message[3] : "");
             resultado.setEstado5(message.length > 5 ? message[5] : "");
             resultado.setCanal5(message.length > 4 ? message[4] : "");
+            resultado.setRssi5("-50");
             resultado.setUsuario(usuario);
             resultado.setVoip(message.length > 7 ? message[7] : "");
+            resultado.setFalla("sin falla");
+            resultado.setCondicion("ok");
+            resultado.setVoip("-");
 
-            Log.d(TAG, "🏁 Resultado final HGU8225: " + resultado);
+            Log.d(TAG, "🏁 Resultado final HGU8225: " + resultado.toString());
             if (listener != null) listener.onHguResult(true, resultado, 200);
         } else {
             Log.e(TAG, "❌ SSH falló con código " + code);

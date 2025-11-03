@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "com.ajmarcos.multiprobador"
-        minSdk 24
+        minSdk 26
         targetSdk 35
         versionCode 4
         versionName "1.4"
@@ -44,6 +44,8 @@ dependencies {
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
     implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'net.lingala.zip4j:zip4j:2.11.5'
+
 
 
 
