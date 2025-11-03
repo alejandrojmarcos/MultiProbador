@@ -3,6 +3,8 @@ plugins {
 }
 
 android {
+
+
     namespace 'com.ajmarcos.multiprobador'
     compileSdk 36
 
@@ -35,6 +37,8 @@ dependencies {
     implementation "androidx.activity:activity:1.8.2"
 
     implementation 'com.jcraft:jsch:0.1.55'
+    //implementation 'com.github.mwiede:jsch:0.2.16'
+
     implementation libs.constraintlayout
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit

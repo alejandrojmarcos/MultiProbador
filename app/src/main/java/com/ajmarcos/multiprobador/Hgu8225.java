@@ -18,6 +18,7 @@ public class Hgu8225 implements Ssh8225.SshListener {
     private String usuario = "";
     private String firmware = "";
     private String serial = "";
+    private String ipPrueba="192.168.1.2";
 
     private boolean cancelado = false;
     private WebView webViewRef = null;
@@ -151,7 +152,7 @@ public class Hgu8225 implements Ssh8225.SshListener {
                                         "if(btn){ btn.click(); } else { var form=document.querySelector('form'); if(form) form.submit(); } }" +
                                         "} catch(e){ console.error(e); }";
                         view.evaluateJavascript(loginScript, v -> view.postDelayed(() ->
-                                runIfNotCancelled(() -> webViewRef.loadUrl("http://192.168.1.1:8000/summary.asp")), 3000));
+                                runIfNotCancelled(() -> webViewRef.loadUrl("http://"+ipPrueba+":8000/summary.asp")), 3000));
                         isLoggedIn = true;
                     }), 3000);
                     return;
@@ -195,54 +196,76 @@ public class Hgu8225 implements Ssh8225.SshListener {
                                 serial = filtrar(sn);
                                 Log.d(TAG, "✅ Firmware: " + firmware + " | Serial: " + serial);
                                 summaryExtracted = true;
-                                webViewRef.loadUrl("http://192.168.1.1:8000/wanintf.asp");
+                                webViewRef.loadUrl("http://"+ipPrueba+":8000/wanintf.asp");
                             } catch (Exception e) {
                                 Log.e(TAG, "❌ Error parseando summary: " + e.getMessage());
                             }
                         });
-                    }), 3000);
+                    }), 4000);
                     return;
                 }
 
                 // Extraer usuario PPP
+                // Extraer usuario PPP
                 if (summaryExtracted && !wanExtracted && url.contains("wanintf.asp")) {
                     view.postDelayed(() -> runIfNotCancelled(() -> {
-                        String extractUser =
+                        String clickAndExtractUser =
                                 "try {" +
-                                        "var input = document.evaluate('/html/body/fieldset[2]/div/form/fieldset[2]/fieldset[1]/div[1]/input', document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue;" +
-                                        "input ? JSON.stringify({Username: input.value}) : JSON.stringify({Error:'Campo no encontrado'});" +
-                                        "} catch(e){ JSON.stringify({Error:e.message}); }";
-                        view.evaluateJavascript(extractUser, value -> {
-                            if (cancelado) return;
-                            try {
-                                String clean = value.replace("\\\"", "\"").replace("\"{", "{").replace("}\"", "}");
-                                String extracted = "No disponible";
-                                if (clean.contains("Username")) {
-                                    int idx = clean.indexOf("Username");
-                                    int colon = clean.indexOf(":", idx);
-                                    int end = clean.indexOf("}", idx);
-                                    if (colon >= 0 && end >= 0) {
-                                        extracted = clean.substring(colon + 1, end).replace("\"", "").trim();
+                                        "console.log('🔍 Buscando enlace WAN...');" +
+                                        "var enlace = document.evaluate('/html/body/fieldset[1]/table/tbody/tr[1]/td[2]/a', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;" +
+                                        "if (enlace) {" +
+                                        "   console.log('✅ Enlace WAN encontrado, haciendo clic...');" +
+                                        "   enlace.click();" +
+                                        "   setTimeout(function() {" +
+                                        "       console.log('🔍 Buscando campo username tras clic...');" +
+                                        "       var input = document.querySelector('input[name=username]');" +
+                                        "       if (input) {" +
+                                        "           console.log('✅ Campo username encontrado:', input.outerHTML);" +
+                                        "           window._usernameFound = JSON.stringify({Found:true, Username: input.value});" +
+                                        "       } else {" +
+                                        "           console.log('❌ No se encontró campo username tras clic.');" +
+                                        "           window._usernameFound = JSON.stringify({Found:false});" +
+                                        "       }" +
+                                        "   }, 3000);" +  // espera 3s tras el clic
+                                        "} else {" +
+                                        "   console.log('❌ Enlace WAN no encontrado.');" +
+                                        "   window._usernameFound = JSON.stringify({Found:false, Error:'No link found'});" +
+                                        "}" +
+                                        "} catch(e){ window._usernameFound = JSON.stringify({Error:e.message}); }";
+
+                        // Ejecutar el clic + búsqueda
+                        view.evaluateJavascript(clickAndExtractUser, v -> {
+                            // Esperamos 4s más y luego recogemos el resultado global
+                            view.postDelayed(() -> view.evaluateJavascript("window._usernameFound;", value -> {
+                                if (cancelado) return;
+                                try {
+                                    String clean = value.replace("\\\"", "\"").replace("\"{", "{").replace("}\"", "}");
+                                    String extracted = "No disponible";
+                                    if (clean.contains("Username")) {
+                                        int idx = clean.indexOf("Username");
+                                        int colon = clean.indexOf(":", idx);
+                                        int end = clean.indexOf("}", idx);
+                                        if (colon >= 0 && end >= 0)
+                                            extracted = clean.substring(colon + 1, end).replace("\"", "").trim();
                                     }
-                                } else {
-                                    extracted = clean.replaceAll("[\\[\\]\"{}]", "").replace("Username", "").trim();
+                                    usuario = filtrar(extracted);
+                                    Log.d(TAG, "✅ Usuario PPP extraído tras clic: " + usuario);
+                                    wanExtracted = true;
+                                    startSsh();
+                                } catch (Exception e) {
+                                    Log.e(TAG, "❌ Error parseando usuario PPP tras clic: " + e.getMessage());
                                 }
-                                usuario = filtrar(extracted);
-                                Log.d(TAG, "✅ Usuario PPP extraído: " + usuario);
-                                wanExtracted = true;
-                                startSsh();
-                            } catch (Exception e) {
-                                Log.e(TAG, "❌ Error parseando usuario PPP: " + e.getMessage());
-                            }
+                            }), 4000);
                         });
-                    }), 3000);
+                    }), 4000);
                 }
+
             }
         });
 
         webViewRef.setWebChromeClient(new WebChromeClient());
         Log.d(TAG, "🌍 Cargando página de login inicial...");
-        webViewRef.loadUrl("http://192.168.1.1:8000/login.asp");
+        webViewRef.loadUrl("http://"+ipPrueba+":8000/login.asp");
     }
 
     private void startSsh() {

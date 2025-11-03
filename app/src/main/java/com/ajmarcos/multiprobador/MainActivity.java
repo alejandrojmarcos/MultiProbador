@@ -74,28 +74,36 @@ public class MainActivity extends AppCompatActivity {
         layout.setPadding(50, 40, 50, 10);
 
         android.widget.Spinner spinnerLote = new android.widget.Spinner(this);
-        String[] lotes = {"Lote A", "Lote B", "Lote C"};
+        String[] lotes = {"Lote Revisador", "Lote Logistica", "Lote Nuevo"};
         android.widget.ArrayAdapter<String> adapterLote = new android.widget.ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, lotes);
         adapterLote.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerLote.setAdapter(adapterLote);
 
-        android.widget.EditText etCatalogo = new android.widget.EditText(this);
-        etCatalogo.setHint("Ingrese catálogo");
+        android.widget.Spinner spinnerCat = new android.widget.Spinner(this);
+        String[] cat = {"1033333333", "10444444444", "10555555555"};
+        android.widget.ArrayAdapter<String> adapterCat = new android.widget.ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, cat);
+        adapterCat.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerCat.setAdapter(adapterCat);
+
+//        android.widget.EditText etCatalogo = new android.widget.EditText(this);
+//        etCatalogo.setHint("Ingrese catálogo");
 
         layout.addView(spinnerLote);
-        layout.addView(etCatalogo);
+        layout.addView(spinnerCat);
+        //layout.addView(etCatalogo);
         builder.setView(layout);
 
         builder.setPositiveButton("Aceptar", (dialog, which) -> {
             String loteSeleccionado = spinnerLote.getSelectedItem().toString();
-            String catalogoSeleccionado = etCatalogo.getText().toString();
+            String catalogoSeleccionado = spinnerCat.getSelectedItem().toString();
+            //String catalogoSeleccionado = etCatalogo.getText().toString();
 
             // Actualizamos los puertos seleccionados
             for (int i = 0; i < arrayCheckBoxSeleccionPuerto.length; i++) {
                 puertosSeleccionados[i] = arrayCheckBoxSeleccionPuerto[i].isChecked();
             }
-
             // Guardamos lote y catálogo en la instancia de prueba
             prueba.setLote(loteSeleccionado);
             prueba.setCatalogo(catalogoSeleccionado);
