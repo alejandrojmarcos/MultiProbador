@@ -1,29 +1,28 @@
 package com.ajmarcos.multiprobador;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.model.ZipParameters;
 import net.lingala.zip4j.model.enums.EncryptionMethod;
-
-import com.google.gson.Gson;
-
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.util.ArrayList;
-import java.util.Map;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
+
 
 import androidx.core.content.FileProvider;
 
@@ -38,6 +37,11 @@ public class Prueba {
     private final Button btnEnviar;
     private WebView webView;
     private String catalogo = "";
+    private AlertDialog progressDialog;
+    private ProgressBar progressBar;
+    private TextView progressText;
+    private AlertDialog dialogEnviando;
+
 
 
     private int currentIndex = 0;  // Índice actual de puerto
@@ -66,7 +70,13 @@ public class Prueba {
             ejecutarSiguientePuerto();
         });
 
-        btnEnviar.setOnClickListener(v -> prepararInternetYEnviar());
+        btnEnviar.setOnClickListener(v -> {
+            try {
+                prepararInternetYEnviar();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         mainHandler.post(() -> {
             webView = new WebView(context);
@@ -223,21 +233,33 @@ public class Prueba {
     // -------------------------------------------------
     // ENVIO DE RESULTADOS POR CORREO CON OUTLOOK
     // -------------------------------------------------
-    public void prepararInternetYEnviar() {
+    public void prepararInternetYEnviar() throws InterruptedException {
         String ipInternet = "192.168.1.230";
         String subInterfaz = "eth3.0";
 
-        appendSalida("🌐 Verificando conectividad en interfaz: " + ipInternet + " / " + subInterfaz + "...\n");
-
-        mainHandler.postDelayed(() -> {
-            if (tieneInternet()) {
-                appendSalida("✅ Conexión a Internet OK. Abriendo Outlook...\n");
-                enviarResultadosPorCorreo(); // abrir Outlook con el ZIP
-            } else {
-                appendSalida("❌ No hay conexión a Internet. Reintentar.\n");
+        appendSalida("🌐 Levantando interfaz " + ipInternet + " / " + subInterfaz + "...\n");
+        Thread.sleep(2000);
+        // Levantar la subinterfaz antes de verificar Internet
+        portMap.levantarSubinterfaz(ipInternet, subInterfaz, (success, salida) -> {
+            if (!success) {
+                appendSalida("❌ No se pudo levantar la interfaz " + subInterfaz + " en " + ipInternet + "\n");
+                return;
             }
-        }, 2000); // espera 2 segundos por si la interfaz recién se estabiliza
+
+            appendSalida("✅ Interfaz levantada. Verificando conexión a Internet...\n");
+
+            // Esperamos un par de segundos para que la interfaz se estabilice
+            mainHandler.postDelayed(() -> {
+                if (tieneInternet()) {
+                    appendSalida("✅ Conexión a Internet OK. Abriendo Outlook...\n");
+                    enviarResultadosPorCorreo(); // abrir Outlook con el ZIP
+                } else {
+                    appendSalida("❌ No hay conexión a Internet. Reintentar.\n");
+                }
+            }, 2000);
+        });
     }
+
 
 
 
@@ -254,6 +276,9 @@ public class Prueba {
     }
 
     public void enviarResultadosPorCorreo() {
+
+
+
         try {
             // 1️⃣ Generar CSV
             String csvFileName = "Resultados_" + System.currentTimeMillis() + ".csv";
@@ -319,7 +344,8 @@ public class Prueba {
 
             Intent intent = new Intent(Intent.ACTION_SEND);
             intent.setType("application/zip");
-            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{"alejandro.marcos@tmoviles.com.ar","andresm.fernandez@tmoviles.com.ar"});
+            // mail andres "andresm.fernandez@tmoviles.com.ar"
+            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{"alejandro.marcos@tmoviles.com.ar",});
             intent.putExtra(Intent.EXTRA_SUBJECT, "Resultados de prueba");
             intent.putExtra(Intent.EXTRA_TEXT, "Adjunto los resultados de la prueba en CSV comprimido.");
             intent.putExtra(Intent.EXTRA_STREAM, uri);

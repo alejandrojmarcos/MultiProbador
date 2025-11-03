@@ -28,21 +28,36 @@ public class PortMap {
      * Apaga todas las interfaces de los tres routers (.240, .241, .242)
      */
     public void apagarTodasLasIPs(PortMappingListener listener) {
-        String[] routers = {"192.168.1.240", "192.168.1.241", "192.168.1.242"};
+        String[] routers = {"192.168.1.240", "192.168.1.241", "192.168.1.242", "192.168.1.230"};
         final int[] completados = {0};
 
         for (String ip : routers) {
-            apagarInterfacesPorIp(ip, (success, salida) -> {
-                Log.d("PORTMAP", "Interfaces de " + ip + " apagadas");
-                synchronized (completados) {
-                    completados[0]++;
-                    if (completados[0] == routers.length && listener != null) {
-                        listener.onComplete(true, new String[]{"Todas las interfaces apagadas"});
+            if ("192.168.1.230".equals(ip)) {
+                // Solo apagamos la subinterfaz eth3.0
+                apagarSubinterfaz(ip, "eth3.0", (success, salida) -> {
+                    Log.d("PORTMAP", "Subinterfaz eth3.0 de " + ip + " apagada");
+                    synchronized (completados) {
+                        completados[0]++;
+                        if (completados[0] == routers.length && listener != null) {
+                            listener.onComplete(true, new String[]{"Todas las interfaces apagadas"});
+                        }
                     }
-                }
-            });
+                });
+            } else {
+                // Para las demás IPs apagamos todas las subinterfaces
+                apagarInterfacesPorIp(ip, (success, salida) -> {
+                    Log.d("PORTMAP", "Interfaces de " + ip + " apagadas");
+                    synchronized (completados) {
+                        completados[0]++;
+                        if (completados[0] == routers.length && listener != null) {
+                            listener.onComplete(true, new String[]{"Todas las interfaces apagadas"});
+                        }
+                    }
+                });
+            }
         }
     }
+
 
     /**
      * Apaga todas las subinterfaces de una IP (eth1.0, eth2.0, eth3.0)
