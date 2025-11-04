@@ -124,7 +124,7 @@ public class Prueba {
     }
 
     private void ejecutarDeviceModel(int puerto) {
-        Ssh ssh = new Ssh("192.168.1.2", "Support", "Te2010An_2014Ma");
+        Ssh ssh = new Ssh("192.168.1.1", "Support", "Te2010An_2014Ma");
         String[] comandos = {"show device_model"};
 
         ssh.setCommands(comandos);
