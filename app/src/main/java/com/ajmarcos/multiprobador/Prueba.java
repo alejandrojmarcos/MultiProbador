@@ -1,30 +1,27 @@
 package com.ajmarcos.multiprobador;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.View;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
-import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+
+import androidx.core.content.FileProvider;
+
 import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.model.ZipParameters;
 import net.lingala.zip4j.model.enums.EncryptionMethod;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.ArrayList;
-
-
-import androidx.core.content.FileProvider;
 
 public class Prueba {
 
@@ -37,20 +34,13 @@ public class Prueba {
     private final Button btnEnviar;
     private WebView webView;
     private String catalogo = "";
-    private AlertDialog progressDialog;
-    private ProgressBar progressBar;
-    private TextView progressText;
-    private AlertDialog dialogEnviando;
 
-
-
-    private int currentIndex = 0;  // Índice actual de puerto
     private final ArrayList<Resultado> resultados = new ArrayList<>();
+    private int currentIndex = 0;
 
     public void setCatalogo(String catalogo) {
         this.catalogo = catalogo;
     }
-
 
     public Prueba(boolean[] puertosSeleccionados, Context context, TextView tvSalida,
                   Button btnComenzar, Button btnEnviar, PortMap portMap) {
@@ -67,6 +57,7 @@ public class Prueba {
             btnEnviar.setEnabled(false);
             resultados.clear();
             currentIndex = 0;
+            // arranca la secuencia secuencial
             ejecutarSiguientePuerto();
         });
 
@@ -84,7 +75,7 @@ public class Prueba {
             webView.setWebViewClient(new WebViewClient() {
                 @Override
                 public void onPageFinished(WebView view, String url) {
-                    // scraping
+                    // scraping (si lo usan los HGU)
                 }
             });
         });
@@ -95,7 +86,12 @@ public class Prueba {
         ejecutarSiguientePuerto();
     }
 
+    /**
+     * Busca el siguiente puerto seleccionado y lo procesa. No continúa hasta
+     * que la cadena levantar->ssh->scrap->apagar complete y llame a onDone.
+     */
     private void ejecutarSiguientePuerto() {
+        // buscar siguiente puerto seleccionado
         while (currentIndex < puertosSeleccionados.length && !puertosSeleccionados[currentIndex]) {
             currentIndex++;
         }
@@ -110,72 +106,96 @@ public class Prueba {
         final int puerto = currentIndex;
         appendSalida("\n=== Configurando Puerto " + (puerto + 1) + " ===\n");
 
+        // levantar subinterfaz correspondiente
         SubInterface si = portMap.getSubInterfaces()[puerto];
         portMap.levantarSubinterfaz(si.getIp(), si.getNombre(), (success, salida) -> {
             if (!success) {
                 appendSalida("❌ Error levantando interfaz " + si.getNombre() + " en " + si.getIp() + "\n");
+                // avanzar al siguiente puerto
                 currentIndex++;
                 ejecutarSiguientePuerto();
                 return;
             }
 
-            mainHandler.postDelayed(() -> ejecutarDeviceModel(puerto), 2000);
+            // esperar un poco y llamar a device_model (todo en secuencia)
+            mainHandler.postDelayed(() -> ejecutarDeviceModel(puerto, () -> {
+                // llamado cuando termina todo para este puerto (incluye apagar interfaces)
+                currentIndex++;
+                ejecutarSiguientePuerto();
+            }), 1500);
         });
     }
 
-    private void ejecutarDeviceModel(int puerto) {
+    /**
+     * Ejecuta "show device_model" vía SSH al equipo de gestión (192.168.1.1).
+     * Al finalizar (callback onDone) ejecuta el scraper asociado.
+     * Firma del listener Ssh original: onSshResult(boolean success, String[] message, int code)
+     */
+    private void ejecutarDeviceModel(int puerto, Runnable onDone) {
         Ssh ssh = new Ssh("192.168.1.1", "Support", "Te2010An_2014Ma");
-        String[] comandos = {"show device_model"};
-
-        ssh.setCommands(comandos);
+        ssh.setCommands(new String[]{"show device_model"});
         ssh.setSshListener((success, message, code) -> mainHandler.post(() -> {
             appendSalida("--- Resultado device_model Puerto " + (puerto + 1) + " ---\n");
-            String modelo = "Modelo desconocido";
-            if (success && message != null && message.length > 2 && !message[2].trim().isEmpty()) {
-                modelo = message[2].trim();
-            }
-            appendSalida(modelo + "\n");
 
-            ejecutarScraperPorModelo(puerto, modelo);
+            String modelo = "Modelo desconocido";
+            if (success && message != null && message.length > 2) {
+                String linea = message[2];
+                if (linea != null) {
+                    linea = linea.trim();
+                    if (!linea.isEmpty()) modelo = linea;
+                }
+            }
+            appendSalida("📡 " + modelo + "\n");
+
+            // Ejecutar scraper asociado; cuando el scraper termine, se debe llamar a apagarYContinuar(puerto,onDone)
+            ejecutarScraperPorModelo(puerto, modelo, onDone);
         }));
         ssh.start();
     }
 
-    private void ejecutarScraperPorModelo(int puerto, String modelo) {
+    /**
+     * Ejecuta el scraper según modelo. Llama a apagarYContinuar(puerto,onDone) cuando termina.
+     */
+    private void ejecutarScraperPorModelo(int puerto, String modelo, Runnable onDone) {
         prepararWebView();
-        Runnable continuar = () -> apagarYContinuar(puerto);
 
+        // cada HguXXXX debe llamar a su listener que finalmente invoque procesarResultadoScrap(..., onDone)
         if (modelo.contains("2541")) {
             Hgu2541 hgu = new Hgu2541(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap2541();
         } else if (modelo.contains("2741")) {
             Hgu2741 hgu = new Hgu2741(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap2741();
         } else if (modelo.contains("2742")) {
             Hgu2742 hgu = new Hgu2742(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap2742();
         } else if (modelo.contains("3505")) {
             Hgu3505 hgu = new Hgu3505(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap3505();
         } else if (modelo.contains("8115")) {
             Hgu8115 hgu = new Hgu8115(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap8115();
         } else if (modelo.contains("8225")) {
             Hgu8225 hgu = new Hgu8225(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code));
+            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap8225();
         } else {
             appendSalida("⚠️ Modelo no soportado: " + modelo + "\n");
-            continuar.run();
+            // llama onDone para continuar la secuencia
+            onDone.run();
         }
     }
 
-    private void procesarResultadoScrap(int puerto, String modelo, boolean success, Resultado resultado, int code) {
+    /**
+     * Procesa el resultado del scraper y luego apaga las interfaces del equipo correspondiente.
+     * Cuando todo finaliza ejecuta onDone.run()
+     */
+    private void procesarResultadoScrap(int puerto, String modelo, boolean success, Resultado resultado, int code, Runnable onDone) {
         if (resultado == null) resultado = new Resultado();
 
         if (success) {
@@ -186,22 +206,23 @@ public class Prueba {
             appendSalida("❌ Scrap falló [" + modelo + "] Puerto " + (puerto + 1) + "\n");
         }
 
-
-
         resultado.setCatalogo(catalogo);
-
-
         resultados.add(resultado);
-        apagarYContinuar(puerto);
+
+        // apagar interfaces y cuando termine -> onDone
+        apagarYContinuar(puerto, onDone);
     }
 
-    private void apagarYContinuar(int puerto) {
+    /**
+     * Apaga todas las subinterfaces del IP asociado al puerto y cuando termina ejecuta onDone.
+     */
+    private void apagarYContinuar(int puerto, Runnable onDone) {
         SubInterface si = portMap.getSubInterfaces()[puerto];
-        portMap.apagarInterfacesPorIp(si.getIp(), (success, salida) -> {
+        portMap.apagarInterfacesPorIp(si.getIp(), (success, salida) -> mainHandler.post(() -> {
             appendSalida("Interfaces de " + si.getIp() + " apagadas\n");
-            currentIndex++;
-            ejecutarSiguientePuerto();
-        });
+            // ahora podemos continuar con el siguiente puerto
+            onDone.run();
+        }));
     }
 
     private void prepararWebView() {
@@ -219,8 +240,10 @@ public class Prueba {
         mainHandler.post(() -> {
             if (tvSalida != null) {
                 tvSalida.append(texto + "\n");
-                int scrollAmount = tvSalida.getLayout().getLineTop(tvSalida.getLineCount()) - tvSalida.getHeight();
-                tvSalida.scrollTo(0, Math.max(scrollAmount, 0));
+                try {
+                    int scrollAmount = tvSalida.getLayout().getLineTop(tvSalida.getLineCount()) - tvSalida.getHeight();
+                    tvSalida.scrollTo(0, Math.max(scrollAmount, 0));
+                } catch (Exception ignored) { }
             }
             Log.d("PRUEBA", texto);
         });
@@ -230,16 +253,13 @@ public class Prueba {
         return resultados;
     }
 
-    // -------------------------------------------------
-    // ENVIO DE RESULTADOS POR CORREO CON OUTLOOK
-    // -------------------------------------------------
+    // --- Envío por correo (igual que tenías) ---
     public void prepararInternetYEnviar() throws InterruptedException {
         String ipInternet = "192.168.1.230";
         String subInterfaz = "eth3.0";
 
         appendSalida("🌐 Levantando interfaz " + ipInternet + " / " + subInterfaz + "...\n");
         Thread.sleep(2000);
-        // Levantar la subinterfaz antes de verificar Internet
         portMap.levantarSubinterfaz(ipInternet, subInterfaz, (success, salida) -> {
             if (!success) {
                 appendSalida("❌ No se pudo levantar la interfaz " + subInterfaz + " en " + ipInternet + "\n");
@@ -247,12 +267,10 @@ public class Prueba {
             }
 
             appendSalida("✅ Interfaz levantada. Verificando conexión a Internet...\n");
-
-            // Esperamos un par de segundos para que la interfaz se estabilice
             mainHandler.postDelayed(() -> {
                 if (tieneInternet()) {
                     appendSalida("✅ Conexión a Internet OK. Abriendo Outlook...\n");
-                    enviarResultadosPorCorreo(); // abrir Outlook con el ZIP
+                    enviarResultadosPorCorreo();
                 } else {
                     appendSalida("❌ No hay conexión a Internet. Reintentar.\n");
                 }
@@ -260,14 +278,11 @@ public class Prueba {
         });
     }
 
-
-
-
-
     private boolean tieneInternet() {
         try {
-            Process p = Runtime.getRuntime().exec("ping -c 1 8.8.8.8");
-            int returnVal = p.waitFor();
+            // Envía 10 paquetes ICMP al host
+            Process p = Runtime.getRuntime().exec("ping -c 10 192.168.1.1");
+            int returnVal = p.waitFor(); // espera a que termine el ping
             return (returnVal == 0);
         } catch (Exception e) {
             e.printStackTrace();
@@ -276,16 +291,12 @@ public class Prueba {
     }
 
     public void enviarResultadosPorCorreo() {
-
-
-
         try {
             // 1️⃣ Generar CSV
             String csvFileName = "Resultados_" + System.currentTimeMillis() + ".csv";
             File csvFile = new File(context.getFilesDir(), csvFileName);
 
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile))) {
-                // Cabeceras
                 String[] headers = {
                         "fecha", "serial", "firmware", "potencia",
                         "ssid2", "estado2", "canal2","rssi2",
@@ -296,7 +307,6 @@ public class Prueba {
                 writer.write(String.join(",", headers));
                 writer.newLine();
 
-                // Filas de resultados
                 for (Resultado r : resultados) {
                     String[] values = {
                             r.getFecha(), r.getSerial(), r.getFirmware(), r.getPotencia(),
@@ -322,20 +332,18 @@ public class Prueba {
                 }
             }
 
-            // 2️⃣ Comprimir CSV en ZIP con contraseña
+            // 2️⃣ ZIP con contraseña
             File zipFile = new File(context.getFilesDir(), "Resultados.zip");
             ZipFile zip = new ZipFile(zipFile, "abcdef12345".toCharArray());
 
             ZipParameters parameters = new ZipParameters();
             parameters.setEncryptFiles(true);
             parameters.setEncryptionMethod(EncryptionMethod.ZIP_STANDARD);
-
-            // Solo el nombre del CSV dentro del ZIP, sin carpeta
             parameters.setFileNameInZip("Resultados.csv");
 
             zip.addFile(csvFile, parameters);
 
-            // 3️⃣ Preparar Intent para enviar por Outlook
+            // 3️⃣ Intent Outlook
             Uri uri = FileProvider.getUriForFile(
                     context,
                     "com.ajmarcos.multiprobador.fileprovider",
@@ -344,8 +352,7 @@ public class Prueba {
 
             Intent intent = new Intent(Intent.ACTION_SEND);
             intent.setType("application/zip");
-            // mail andres "andresm.fernandez@tmoviles.com.ar"
-            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{"alejandro.marcos@tmoviles.com.ar",});
+            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{"alejandro.marcos@tmoviles.com.ar"});
             intent.putExtra(Intent.EXTRA_SUBJECT, "Resultados de prueba");
             intent.putExtra(Intent.EXTRA_TEXT, "Adjunto los resultados de la prueba en CSV comprimido.");
             intent.putExtra(Intent.EXTRA_STREAM, uri);
@@ -355,7 +362,6 @@ public class Prueba {
             context.startActivity(intent);
             appendSalida("📧 Abriendo Outlook con el ZIP protegido...\n");
 
-            // Opcional: borrar el CSV temporal después de crear el ZIP
             csvFile.delete();
 
         } catch (Exception e) {
@@ -363,6 +369,4 @@ public class Prueba {
             appendSalida("❌ Error preparando envío de correo\n");
         }
     }
-
-
 }

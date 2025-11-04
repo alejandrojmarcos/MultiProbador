@@ -27,6 +27,7 @@ public class Hgu2742 {
 
     private static final int TIMEOUT_MS = 30000; // 30s
     private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
+
     private final Runnable timeoutRunnable = () -> {
         if (!cancelado) {
             cancelar();
@@ -66,7 +67,7 @@ public class Hgu2742 {
 
         if (dialog != null && dialog.isShowing()) dialog.dismiss();
 
-        if (listener != null) listener.onHguResult(false, null, 999);
+        if (listener != null) finalizar(false, null, 999);
     }
 
     private void runIfNotCancelled(Runnable task) {
@@ -184,7 +185,7 @@ public class Hgu2742 {
                             } catch (JSONException e) {
                                 Log.e(TAG, "❌ Error parseando JSON: " + e.getMessage());
                                 if (listener != null && !cancelado) {
-                                    listener.onHguResult(false, null, 500);
+                                    finalizar(false, null, 500);
                                 }
                             }
                         }));
@@ -200,7 +201,8 @@ public class Hgu2742 {
                             resultado.setUsuario(filtrar(value.replace("\"", "")));
                             Log.d(TAG, "🏁 Resultado final HGU2742: " + resultado.toString());
                             if (listener != null && !cancelado) {
-                                listener.onHguResult(true, resultado, 200);
+                                finalizar(true, resultado, 200);
+
                             }
                         }));
                     }
@@ -212,4 +214,32 @@ public class Hgu2742 {
         Log.d(TAG, "🌍 Cargando página inicial HGU2742...");
         webViewRef.loadUrl("http://192.168.1.1:8000/");
     }
+
+    private void finalizar(boolean exito, Resultado resultado, int codigo) {
+        timeoutHandler.removeCallbacks(timeoutRunnable);
+        cancelado = true;
+
+        // Cierra dialog si está abierto
+        if (dialog != null && dialog.isShowing()) {
+            try { dialog.dismiss(); } catch (Exception ignored) {}
+        }
+
+        // Detiene y libera WebView
+        if (webViewRef != null) {
+            try {
+                webViewRef.stopLoading();
+                webViewRef.loadUrl("about:blank");
+                webViewRef.clearHistory();
+                webViewRef.clearCache(true);
+                webViewRef.removeAllViews();
+                webViewRef.destroy();
+                webViewRef = null;
+            } catch (Exception ignored) {}
+        }
+
+        if (listener != null) listener.onHguResult(exito, resultado, codigo);
+    }
+
+
+
 }
