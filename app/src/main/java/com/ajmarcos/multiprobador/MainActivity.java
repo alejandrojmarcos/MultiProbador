@@ -86,24 +86,24 @@ public class MainActivity extends AppCompatActivity {
         builder.setPositiveButton("Aceptar", (dialog, which) -> {
             String catalogoSeleccionado = spinnerCatalogo.getSelectedItem().toString();
 
-            // Actualizamos los puertos seleccionados
+
             for (int i = 0; i < arrayCheckBoxSeleccionPuerto.length; i++) {
                 puertosSeleccionados[i] = arrayCheckBoxSeleccionPuerto[i].isChecked();
             }
-            // Guardamos lote y catálogo en la instancia de prueba
+
             prueba.setCatalogo(catalogoSeleccionado);
-            Log.d("PRUEBA", "✅ Lote seleccionado: " + catalogoSeleccionado);
+            Log.d("PRUEBA", "Lote seleccionado: " + catalogoSeleccionado);
 
 
 
-            // Apagamos interfaces y arrancamos la prueba
+
             portMap.apagarTodasLasIPs((success, salida) -> {
                 runOnUiThread(() -> {
                     if (success) {
-                        tvSalida.append("✅ Todas las interfaces apagadas.\n");
+                        tvSalida.append("Todas las interfaces apagadas.\n");
                         prueba.iniciar(); // empieza la secuencia
                     } else {
-                        tvSalida.append("❌ Error apagando interfaces.\n");
+                        tvSalida.append("Error apagando interfaces.\n");
                     }
                 });
             });

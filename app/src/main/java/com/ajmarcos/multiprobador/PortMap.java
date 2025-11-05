@@ -8,7 +8,7 @@ public class PortMap {
         void onComplete(boolean success, String[] salida);
     }
 
-    // Lista de subinterfaces para cada puerto
+    
     private final SubInterface[] subInterfaces = new SubInterface[]{
             new SubInterface("192.168.1.240", "eth1.0"), // puerto 1
             new SubInterface("192.168.1.240", "eth2.0"), // puerto 2
