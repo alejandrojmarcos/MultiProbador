@@ -9,7 +9,6 @@ import android.util.Log;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.core.content.FileProvider;
@@ -35,6 +34,7 @@ public class Prueba {
     private WebView webView;
     private String catalogo = "";
 
+
     private final ArrayList<Resultado> resultados = new ArrayList<>();
     private int currentIndex = 0;
 
@@ -42,7 +42,7 @@ public class Prueba {
         this.catalogo = catalogo;
     }
 
-    public Prueba(boolean[] puertosSeleccionados, Context context, TextView tvSalida,
+    public Prueba(WebView webView,boolean[] puertosSeleccionados, Context context, TextView tvSalida,
                   Button btnComenzar, Button btnEnviar, PortMap portMap) {
         this.puertosSeleccionados = puertosSeleccionados;
         this.context = context;
@@ -51,6 +51,7 @@ public class Prueba {
         this.portMap = portMap;
         this.btnComenzar = btnComenzar;
         this.btnEnviar = btnEnviar;
+        this.webView=webView;
 
         btnComenzar.setOnClickListener(v -> {
             btnComenzar.setEnabled(false);
@@ -70,7 +71,7 @@ public class Prueba {
         });
 
         mainHandler.post(() -> {
-            webView = new WebView(context);
+
             webView.getSettings().setJavaScriptEnabled(true);
             webView.setWebViewClient(new WebViewClient() {
                 @Override
@@ -161,29 +162,32 @@ public class Prueba {
 
         // cada HguXXXX debe llamar a su listener que finalmente invoque procesarResultadoScrap(..., onDone)
         if (modelo.contains("2541")) {
-            Hgu2541 hgu = new Hgu2541(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
-            hgu.scrap2541();
+            Hgu2541_ hgu = new Hgu2541_();
+            hgu.setHgu2541Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
+            hgu.scrap2541(this.webView);
+
         } else if (modelo.contains("2741")) {
-            Hgu2741 hgu = new Hgu2741(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
-            hgu.scrap2741();
+            Hgu2741_ hgu = new Hgu2741_();
+            hgu.setHgu2741Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone)
+            );
+            hgu.scrap2741(this.webView); // o su propio WebView interno
+
         } else if (modelo.contains("2742")) {
-            Hgu2742 hgu = new Hgu2742(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
-            hgu.scrap2742();
+            Hgu2742_ hgu = new Hgu2742_();
+            hgu.setHgu2742Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
+            hgu.scrap2742(this.webView);
         } else if (modelo.contains("3505")) {
-            Hgu3505 hgu = new Hgu3505(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
-            hgu.scrap3505();
+            Hgu3505_ hgu = new Hgu3505_(context);
+            hgu.setHgu3505Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
+            hgu.scrap3505(this.webView);
         } else if (modelo.contains("8115")) {
-            Hgu8115 hgu = new Hgu8115(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
-            hgu.scrap8115();
+            Hgu8115_ hgu = new Hgu8115_(context);
+            hgu.setHgu8115Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
+            hgu.scrap8115(this.webView);
         } else if (modelo.contains("8225")) {
-            Hgu8225 hgu = new Hgu8225(context);
-            hgu.setHguListener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
-            hgu.scrap8225();
+            Hgu8225_ hgu = new Hgu8225_(context);
+            hgu.setHgu8225Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
+            hgu.scrap8225(this.webView);
         } else {
             appendSalida("⚠️ Modelo no soportado: " + modelo + "\n");
             // llama onDone para continuar la secuencia
@@ -191,10 +195,6 @@ public class Prueba {
         }
     }
 
-    /**
-     * Procesa el resultado del scraper y luego apaga las interfaces del equipo correspondiente.
-     * Cuando todo finaliza ejecuta onDone.run()
-     */
     private void procesarResultadoScrap(int puerto, String modelo, boolean success, Resultado resultado, int code, Runnable onDone) {
         if (resultado == null) resultado = new Resultado();
 
@@ -202,16 +202,28 @@ public class Prueba {
             ValidadorResultado.ResultadoValidacion val = ValidadorResultado.validar(resultado);
             appendSalida("✅ Scrap OK [" + modelo + "] Puerto " + (puerto + 1) + "\n");
             appendSalida("Validación: " + val.getMensaje() + "\n");
+
+            // Imprimir todos los valores de resultado
+            appendSalida("📊 Resultado completo:");
+            appendSalida("Serial: " + resultado.getSerial());
+            appendSalida("Firmware: " + resultado.getFirmware());
+            appendSalida("Potencia: " + resultado.getPotencia());
+            appendSalida("SSID2: " + resultado.getSsid2() + ", Canal2: " + resultado.getCanal2() + ", Estado2: " + resultado.getEstado2());
+            appendSalida("SSID5: " + resultado.getSsid5() + ", Canal5: " + resultado.getCanal5() + ", Estado5: " + resultado.getEstado5());
+            appendSalida("Usuario: " + resultado.getUsuario());
+            appendSalida("VoIP: " + resultado.getVoip());
+            appendSalida("Catalogo: " + resultado.getCatalogo());
+            appendSalida("Falla: " + resultado.getFalla());
+            appendSalida("Condicion: " + resultado.getCondicion());
+            appendSalida("Multiprobador: " + resultado.getMultiprobador());
         } else {
             appendSalida("❌ Scrap falló [" + modelo + "] Puerto " + (puerto + 1) + "\n");
         }
 
-        resultado.setCatalogo(catalogo);
         resultados.add(resultado);
-
-        // apagar interfaces y cuando termine -> onDone
         apagarYContinuar(puerto, onDone);
     }
+
 
     /**
      * Apaga todas las subinterfaces del IP asociado al puerto y cuando termina ejecuta onDone.

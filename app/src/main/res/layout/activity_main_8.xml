@@ -572,18 +572,23 @@
         android:layout_margin="4dp"
         android:fillViewport="true">
 
-        <TextView
-            android:id="@+id/tvSalida"
+
+        <WebView
+            android:id="@+id/webViewScrap"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="#000000"
-            android:textColor="#00FF00"
-            android:textSize="12sp"
-            android:padding="4dp"
-            android:scrollbars="vertical"
-            android:focusableInTouchMode="true"
-            android:focusable="true" />
+            android:layout_height="match_parent"/>
     </ScrollView>
+    <TextView
+        android:id="@+id/tvSalida"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#000000"
+        android:textColor="#00FF00"
+        android:textSize="12sp"
+        android:padding="4dp"
+        android:scrollbars="vertical"
+        android:focusableInTouchMode="true"
+        android:focusable="true" />
 
 </LinearLayout>
 </ScrollView>

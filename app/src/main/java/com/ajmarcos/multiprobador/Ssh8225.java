@@ -34,7 +34,7 @@ public class Ssh8225 extends Thread {
         canal5="";
         estado2="";
         estado5="";
-        this.host = "192.168.1.2";
+        this.host = "192.168.1.1";
         this.username = "Support";
         this.password = "Te2010An_2014Ma";
         this.detener = false; // Inicializar la bandera

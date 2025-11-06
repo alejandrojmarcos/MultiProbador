@@ -2,6 +2,7 @@ package com.ajmarcos.multiprobador;
 
 import android.os.Bundle;
 import android.util.Log;
+import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.TextView;
@@ -23,6 +24,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main_8);
 
         tvSalida = findViewById(R.id.tvSalida);
+        WebView webView = findViewById(R.id.webViewScrap);
 
         arrayCheckBoxSeleccionPuerto = new CheckBox[]{
                 findViewById(R.id.cbPuerto01),
@@ -56,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
         puertosSeleccionados = new boolean[8];
 
         PortMap portMap = new PortMap();
-        Prueba prueba = new Prueba(puertosSeleccionados, this, tvSalida, btnComenzar, btnEnviar, portMap);
+        Prueba prueba = new Prueba(webView,puertosSeleccionados, this, tvSalida, btnComenzar, btnEnviar, portMap);
 
         // Listener del botón Comenzar
         btnComenzar.setOnClickListener(v -> {
