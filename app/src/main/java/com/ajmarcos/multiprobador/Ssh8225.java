@@ -16,6 +16,9 @@ public class Ssh8225 extends Thread {
     private SshListener listener;
     private volatile boolean detener; // Bandera para detener el hilo de manera controlada
     private String[] wifiData; // Almacenará los resultados
+    private String TAG = "Deploy";
+
+
 
     String ssid2, canal2, estado2, ssid5, canal5, estado5,potencia;
 
@@ -160,11 +163,11 @@ public class Ssh8225 extends Thread {
             outputStream.close();
             channelShell.disconnect();
             session.disconnect();
-            Log.d("Deploy","SSH cerrado");
+            Log.d(TAG,"SSH cerrado");
             if (isReading[0]) {
                 //System.out.println("El hilo lector no terminó dentro del tiempo esperado.");
             } else {
-                Log.d("Deploy","SSH finalizado");
+                Log.d(TAG,"SSH finalizado");
             }
 
         } catch (Exception e) {

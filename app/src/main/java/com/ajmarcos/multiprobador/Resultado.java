@@ -4,7 +4,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Resultado {
+    private String multiprobador;
     private String fecha;
+    private String modelo; // <-- NUEVO CAMPO
     private String serial;
     private String firmware;
     private String potencia;
@@ -16,34 +18,14 @@ public class Resultado {
     private String estado5;
     private String canal5;
     private String rssi5;
-
-
     private String usuario;
     private String voip;
     private String catalogo;
     private String falla;
     private String condicion;
-    private String multiprobador; // <-- nuevo campo
 
 
-    public String getRssi5() {
-        return rssi5;
-    }
-
-    public void setRssi5(String rssi5) {
-        this.rssi5 = rssi5;
-    }
-
-    public String getRssi2() {
-        return rssi2;
-    }
-
-    public void setRssi2(String rssi2) {
-        this.rssi2 = rssi2;
-    }
-
-
-    // Getters y setters
+    // Getters y Setters
     public String getFecha() { return fecha; }
     public void setFecha(String fecha) { this.fecha = fecha; }
 
@@ -65,6 +47,9 @@ public class Resultado {
     public String getCanal2() { return canal2; }
     public void setCanal2(String canal2) { this.canal2 = canal2; }
 
+    public String getRssi2() { return rssi2; }
+    public void setRssi2(String rssi2) { this.rssi2 = rssi2; }
+
     public String getSsid5() { return ssid5; }
     public void setSsid5(String ssid5) { this.ssid5 = ssid5; }
 
@@ -74,12 +59,14 @@ public class Resultado {
     public String getCanal5() { return canal5; }
     public void setCanal5(String canal5) { this.canal5 = canal5; }
 
+    public String getRssi5() { return rssi5; }
+    public void setRssi5(String rssi5) { this.rssi5 = rssi5; }
+
     public String getUsuario() { return usuario; }
     public void setUsuario(String usuario) { this.usuario = usuario; }
 
     public String getVoip() { return voip; }
     public void setVoip(String voip) { this.voip = voip; }
-
 
     public String getCatalogo() { return catalogo; }
     public void setCatalogo(String catalogo) { this.catalogo = catalogo; }
@@ -93,10 +80,15 @@ public class Resultado {
     public String getMultiprobador() { return multiprobador; }
     public void setMultiprobador(String multiprobador) { this.multiprobador = multiprobador; }
 
-    // Método opcional para convertir a Map si lo usabas antes
+    public String getModelo() { return modelo; }
+    public void setModelo(String modelo) { this.modelo = modelo; }
+
+    // Conversión a Map
     public Map<String, Object> toMap() {
         Map<String, Object> map = new HashMap<>();
+        map.put("multiprobador", multiprobador);
         map.put("fecha", fecha);
+        map.put("modelo", modelo); // agregado
         map.put("serial", serial);
         map.put("firmware", firmware);
         map.put("potencia", potencia);
@@ -113,14 +105,17 @@ public class Resultado {
         map.put("catalogo", catalogo);
         map.put("falla", falla);
         map.put("condicion", condicion);
-        map.put("multiprobador", multiprobador);
+
+
         return map;
     }
 
     @Override
     public String toString() {
         return "Resultado{" +
-                "fecha='" + fecha + '\'' +
+                "multiprobador='" + multiprobador + '\'' +
+                ", fecha='" + fecha + '\'' +
+                ", modelo='" + modelo + '\'' +
                 ", serial='" + serial + '\'' +
                 ", firmware='" + firmware + '\'' +
                 ", potencia='" + potencia + '\'' +
@@ -137,7 +132,6 @@ public class Resultado {
                 ", catalogo='" + catalogo + '\'' +
                 ", falla='" + falla + '\'' +
                 ", condicion='" + condicion + '\'' +
-                ", multiprobador='" + multiprobador + '\'' +
                 '}';
     }
 }

@@ -33,7 +33,8 @@ public class Prueba {
     private final Button btnEnviar;
     private WebView webView;
     private String catalogo = "";
-
+    private String TAG = "Deploy";
+    private String MultiLocal = "Bella Vista 1";
 
     private final ArrayList<Resultado> resultados = new ArrayList<>();
     private int currentIndex = 0;
@@ -162,30 +163,48 @@ public class Prueba {
 
         // cada HguXXXX debe llamar a su listener que finalmente invoque procesarResultadoScrap(..., onDone)
         if (modelo.contains("2541")) {
-            Hgu2541_ hgu = new Hgu2541_();
+            Hgu2541 hgu = new Hgu2541();
+            hgu.setModel(modelo);
+            hgu.setMulti(MultiLocal);
+            hgu.setCatal(catalogo);
             hgu.setHgu2541Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap2541(this.webView);
 
         } else if (modelo.contains("2741")) {
-            Hgu2741_ hgu = new Hgu2741_();
+            Hgu2741 hgu = new Hgu2741();
+            hgu.setModel(modelo);
+            hgu.setMulti(MultiLocal);
+            hgu.setCatal(catalogo);
             hgu.setHgu2741Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone)
             );
             hgu.scrap2741(this.webView); // o su propio WebView interno
 
         } else if (modelo.contains("2742")) {
-            Hgu2742_ hgu = new Hgu2742_();
+            Hgu2742 hgu = new Hgu2742();
+            hgu.setModel(modelo);
+            hgu.setMulti(MultiLocal);
+            hgu.setCatal(catalogo);
             hgu.setHgu2742Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap2742(this.webView);
         } else if (modelo.contains("3505")) {
-            Hgu3505_ hgu = new Hgu3505_(context);
+            Hgu3505 hgu = new Hgu3505(context);
+            hgu.setModel(modelo);
+            hgu.setMulti(MultiLocal);
+            hgu.setCatal(catalogo);
             hgu.setHgu3505Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap3505(this.webView);
         } else if (modelo.contains("8115")) {
-            Hgu8115_ hgu = new Hgu8115_(context);
+            Hgu8115 hgu = new Hgu8115(context);
+            hgu.setModel(modelo);
+            hgu.setMulti(MultiLocal);
+            hgu.setCatal(catalogo);
             hgu.setHgu8115Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap8115(this.webView);
         } else if (modelo.contains("8225")) {
-            Hgu8225_ hgu = new Hgu8225_(context);
+            Hgu8225 hgu = new Hgu8225(context);
+            hgu.setModel(modelo);
+            hgu.setMulti(MultiLocal);
+            hgu.setCatal(catalogo);
             hgu.setHgu8225Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap8225(this.webView);
         } else {
@@ -257,7 +276,7 @@ public class Prueba {
                     tvSalida.scrollTo(0, Math.max(scrollAmount, 0));
                 } catch (Exception ignored) { }
             }
-            Log.d("PRUEBA", texto);
+            Log.d(TAG, texto);
         });
     }
 
@@ -271,7 +290,7 @@ public class Prueba {
         String subInterfaz = "eth3.0";
 
         appendSalida("🌐 Levantando interfaz " + ipInternet + " / " + subInterfaz + "...\n");
-        Thread.sleep(2000);
+        Thread.sleep(1000);
         portMap.levantarSubinterfaz(ipInternet, subInterfaz, (success, salida) -> {
             if (!success) {
                 appendSalida("❌ No se pudo levantar la interfaz " + subInterfaz + " en " + ipInternet + "\n");
@@ -286,7 +305,7 @@ public class Prueba {
                 } else {
                     appendSalida("❌ No hay conexión a Internet. Reintentar.\n");
                 }
-            }, 2000);
+            }, 1000);
         });
     }
 
@@ -310,22 +329,22 @@ public class Prueba {
 
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile))) {
                 String[] headers = {
-                        "fecha", "serial", "firmware", "potencia",
+                        "fecha","multiprobador","modelo", "serial", "firmware", "potencia",
                         "ssid2", "estado2", "canal2","rssi2",
                         "ssid5", "estado5", "canal5","rssi5",
                         "usuario", "voip",
-                        "catalogo", "falla", "condicion", "multiprobador"
+                        "catalogo", "falla", "condicion"
                 };
                 writer.write(String.join(",", headers));
                 writer.newLine();
 
                 for (Resultado r : resultados) {
                     String[] values = {
-                            r.getFecha(), r.getSerial(), r.getFirmware(), r.getPotencia(),
+                            r.getFecha(), r.getMultiprobador(), r.getModelo(), r.getSerial(), r.getFirmware(), r.getPotencia(),
                             r.getSsid2(), r.getEstado2(), r.getCanal2(), r.getRssi2(),
                             r.getSsid5(), r.getEstado5(), r.getCanal5(), r.getRssi5(),
                             r.getUsuario(), r.getVoip(),
-                            r.getCatalogo(), r.getFalla(), r.getCondicion(), r.getMultiprobador()
+                            r.getCatalogo(), r.getFalla(), r.getCondicion()
                     };
 
                     for (int i = 0; i < values.length; i++) {
@@ -377,7 +396,7 @@ public class Prueba {
             csvFile.delete();
 
         } catch (Exception e) {
-            Log.e("PRUEBA", "❌ Error preparando envío de correo", e);
+            Log.e(TAG, "❌ Error preparando envío de correo", e);
             appendSalida("❌ Error preparando envío de correo\n");
         }
     }

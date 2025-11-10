@@ -11,6 +11,9 @@ import java.io.InputStreamReader;
 
 public class Ssh extends Thread {
 
+    private final String TAG = "Deploy";
+    private final String CLASS = getClass().getSimpleName();
+
     private String host, username, password;
     private String[] commands;
     private boolean detener = false;
@@ -36,6 +39,7 @@ public class Ssh extends Thread {
 
     @Override
     public void run() {
+        Log.d(TAG, CLASS + " → Iniciando conexión SSH con " + host);
         JSch jsch = new JSch();
         Session session = null;
 
@@ -44,30 +48,34 @@ public class Ssh extends Thread {
             session.setPassword(password);
             session.setConfig("StrictHostKeyChecking", "no");
             session.connect();
+            Log.d(TAG, CLASS + " → Sesión SSH conectada con " + host);
 
             ChannelShell channelShell = (ChannelShell) session.openChannel("shell");
             InputStream inputStream = channelShell.getInputStream();
             DataOutputStream outputStream = new DataOutputStream(channelShell.getOutputStream());
             channelShell.connect();
+            Log.d(TAG, CLASS + " → Canal shell abierto en " + host);
 
             final boolean[] isReading = {true};
 
             // Hilo para leer salida
             Thread readerThread = new Thread(() -> {
+                Log.d(TAG, CLASS + " → Iniciando lectura de salida SSH...");
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
                     StringBuilder output = new StringBuilder();
                     String line;
                     while ((line = reader.readLine()) != null && !detener) {
+                        Log.d(TAG, CLASS + " → SSH[" + host + "]: " + line);
                         output.append(line).append("\n");
-                        //System.out.println(line);
                     }
 
                     if (listener != null) {
                         String[] salida = output.toString().split("\n");
                         listener.onSshResult(true, salida, 0);
+                        Log.d(TAG, CLASS + " → Lectura finalizada correctamente para " + host);
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    Log.e(TAG, CLASS + " → Error leyendo salida SSH: " + e.getMessage());
                     if (listener != null) {
                         listener.onSshResult(false, new String[]{e.getMessage()}, 1);
                     }
@@ -78,16 +86,15 @@ public class Ssh extends Thread {
             readerThread.start();
 
             // Enviar comandos
-            // Enviar comandos
             if (commands != null) {
                 for (String command : commands) {
+                    Log.d(TAG, CLASS + " → Enviando comando: " + command);
                     outputStream.writeBytes(command + "\n");
                     outputStream.flush();
 
-                    // Si el comando es "ip link set ... up", esperamos un poco
                     if (command.startsWith("ip link set") && command.endsWith("up")) {
-                        Log.d("SSH", "Subinterfaz levantada: " + command + " - esperando 2 segundos...");
-                        Thread.sleep(2000); // ajustable
+                        Log.d(TAG, CLASS + " → Subinterfaz levantada (" + command + "), esperando 1s...");
+                        Thread.sleep(1000);
                     } else {
                         Thread.sleep(400);
                     }
@@ -106,21 +113,23 @@ public class Ssh extends Thread {
             outputStream.close();
             channelShell.disconnect();
             session.disconnect();
-            Log.d("Deploy","SSH cerrado");
+            Log.d(TAG, CLASS + " → SSH cerrado correctamente para " + host);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, CLASS + " → Error general SSH (" + host + "): " + e.getMessage());
             if (listener != null) {
                 listener.onSshResult(false, new String[]{e.getMessage()}, 2);
             }
         } finally {
             if (session != null && session.isConnected()) {
                 session.disconnect();
+                Log.d(TAG, CLASS + " → Sesión SSH desconectada en finally");
             }
         }
     }
+
     public void detener() {
         this.detener = true;
+        Log.d(TAG, CLASS + " → Señal de detención recibida para SSH en " + host);
     }
-
 }

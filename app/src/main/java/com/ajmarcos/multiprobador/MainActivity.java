@@ -17,6 +17,7 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox[] arrayCheckBoxSeleccionPuerto;
     private Button [] arrayBotonesPuerto;
     private TextView tvSalida;
+    private String TAG = "Deploy";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             prueba.setCatalogo(catalogoSeleccionado);
-            Log.d("PRUEBA", "Lote seleccionado: " + catalogoSeleccionado);
+            Log.d(TAG, "Lote seleccionado: " + catalogoSeleccionado);
 
 
 

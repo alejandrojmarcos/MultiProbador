@@ -1,224 +1,180 @@
 package com.ajmarcos.multiprobador;
 
-import static android.content.ContentValues.TAG;
-
 import android.annotation.SuppressLint;
-import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.webkit.CookieManager;
-import android.webkit.JavascriptInterface;
-import android.webkit.JsResult;
-import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 public class Hgu2741 {
 
-    private Resultado resultado = new Resultado();
-    private boolean cancelado = false;
+    private final String TAG = "Deploy";
+    private final String CLASS = getClass().getSimpleName();
+
     private WebView webViewRef = null;
-    private hguListener listener;
-    private Context context;
+    private boolean cancelado = false;
+    private hgu2741Listener listener;
+    private Resultado resultado = new Resultado();
+    private String model  = "";
+    private String multi ="";
 
-    private static final int TIMEOUT_MS = 30000; // 30s
-    private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
-    private final Runnable timeoutRunnable = () -> {
-        if (!cancelado) {
-            cancelar();
-            Log.e(TAG, "❌ Timeout alcanzado, cancelando proceso (2741).");
-        }
-    };
+    private String catal = "";
 
-    public interface hguListener {
-        void onHguResult(boolean success, Resultado resultado, int code);
+    public void setCatal(String catal) {
+        this.catal = catal;
     }
 
-    public void setHguListener(hguListener listener) {
+    public void setModel(String model){
+        this.model = model;
+    }
+    public void setMulti(String multi){
+        this.multi = multi;
+    }
+
+
+    public interface hgu2741Listener {
+        void onHgu2741Result(boolean success, Resultado resultado, int code);
+    }
+
+    public void setHgu2741Listener(hgu2741Listener listener) {
         this.listener = listener;
     }
 
-    public Hgu2741(Context ctx) {
-        this.context = ctx;
-    }
-
-    public void cancelar() {
-        if (cancelado) return;
-        cancelado = true;
-
-        timeoutHandler.removeCallbacks(timeoutRunnable);
-
-        if (webViewRef != null) {
-            try {
-                webViewRef.stopLoading();
-                webViewRef.loadUrl("about:blank");
-                webViewRef.clearHistory();
-                webViewRef.clearCache(true);
-                webViewRef = null;
-            } catch (Exception e) {
-                Log.e(TAG, "Error deteniendo WebView: " + e.getMessage());
-            }
-        }
-
-        if (listener != null) listener.onHguResult(false, null, 999);
-    }
-
-    private void runIfNotCancelled(Runnable task) {
-        if (!cancelado) task.run();
-    }
-
-    private String filtrar(String texto) {
-        if (texto == null) return "";
-        char[] validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@.-_ ".toCharArray();
-        StringBuilder filtered = new StringBuilder();
-        for (char c : texto.toCharArray()) {
-            for (char v : validChars) if (c == v) { filtered.append(c); break; }
-        }
-        return filtered.toString().trim();
-    }
-
-    /**
-     * Versión recomendada: recibe un WebView ya existente (y preferiblemente añadido a la UI)
-     */
     @SuppressLint("SetJavaScriptEnabled")
     public void scrap2741(WebView webView) {
         cancelado = false;
-        this.webViewRef = webView;
+        webViewRef = webView;
 
-        timeoutHandler.removeCallbacks(timeoutRunnable);
-        timeoutHandler.postDelayed(timeoutRunnable, TIMEOUT_MS);
+        webView.getSettings().setJavaScriptEnabled(true);
+        webView.getSettings().setDomStorageEnabled(true);
 
-        webViewRef.getSettings().setJavaScriptEnabled(true);
-        webViewRef.getSettings().setDomStorageEnabled(true);
-        webViewRef.clearCache(true);
-        webViewRef.clearHistory();
-        webViewRef.clearFormData();
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.removeAllCookies(value ->
+                Log.d(TAG, CLASS + (value
+                        ? " → Todas las cookies eliminadas"
+                        : " → No se pudieron eliminar todas las cookies")));
 
-        CookieManager.getInstance().removeAllCookies(value ->
-                Log.d(TAG, value ? "🍪 Todas las cookies eliminadas" : "⚠️ No se pudieron eliminar cookies"));
+        webView.clearCache(true);
+        webView.clearHistory();
+        webView.clearFormData();
 
-        // Aseguramos tener un WebChromeClient (ayuda con confirm/alert y logs)
-        webViewRef.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
-                Log.d(TAG, "JSConfirm:" + message);
-                result.confirm();
-                return true;
-            }
-        });
+        Log.d(TAG, CLASS + " → Iniciando scrap2741");
 
-        webViewRef.setWebViewClient(new WebViewClient() {
+        webView.setWebViewClient(new WebViewClient() {
             private boolean isLoggedIn = false;
             private boolean deviceInfoExtracted = false;
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 if (cancelado) return;
-                Log.d(TAG, "🌐 Página cargada: " + url);
+                Log.d(TAG, CLASS + " → Página cargada: " + url);
 
-                runIfNotCancelled(() -> {
-                    String urlLower = url == null ? "" : url.toLowerCase();
+                // === LOGIN ===
+                if (!isLoggedIn && url.contains("logIn_main.cgi")) {
+                    Log.d(TAG, CLASS + " → Ejecutando login...");
+                    String loginScript =
+                            "var u=document.querySelector('input[name=\"username\"]');" +
+                                    "var p=document.querySelector('input[name=\"syspasswd_1\"]');" +
+                                    "var b=document.querySelector('input[id=\"Submit\"]');" +
+                                    "if(u&&p&&b){u.value='Support';p.value='Te2010An_2014Ma';b.click();}";
+                    view.evaluateJavascript(loginScript, value ->
+                            Log.d(TAG, CLASS + " → Login ejecutado"));
+                    isLoggedIn = true;
 
-                    // Detectar login de forma más tolerante
-                    if (!isLoggedIn && (urlLower.contains("login") || urlLower.contains("login_main") || urlLower.contains("login.asp") || urlLower.contains("logIn_main.cgi"))) {
-                        Log.d(TAG, "🟡 Detectada pantalla de login. Intentando iniciar sesión...");
-                        String loginScript =
-                                "try{" +
-                                        "var u=document.querySelector('input[name=\"username\"]')||document.querySelector('input[name=\"Username\"]');" +
-                                        "var p=document.querySelector('input[name=\"syspasswd_1\"]')||document.querySelector('input[name=\"Password\"]')||document.querySelector('input[type=password]');" +
-                                        "var b=document.querySelector('input[id=\"Submit\"]')||document.querySelector('input[type=submit]')||document.querySelector('button[type=submit]');" +
-                                        "if(u&&p){u.value='Support';p.value='Te2010An_2014Ma'; if(b) b.click(); else { var f = u.form || p.form; if(f) f.submit(); }} else {console.log('Campos login no encontrados');}" +
-                                        "}catch(e){console.error('login err', e);}";
-                        view.evaluateJavascript(loginScript, v -> Log.d(TAG, "▶ Script login ejecutado: " + v));
-                        isLoggedIn = true;
+                    new android.os.Handler().postDelayed(() ->
+                            webView.loadUrl("http://192.168.1.1:8000/cgi-bin/deviceinfo.cgi"), 6000);
+                }
 
-                        // esperar y navegar a deviceinfo.cgi
-                        webViewRef.postDelayed(() -> runIfNotCancelled(() ->
-                                webViewRef.loadUrl("http://192.168.1.1:8000/cgi-bin/deviceinfo.cgi")), 6000);
+                // === EXTRAER DEVICE INFO ===
+                else if (url.contains("deviceinfo.cgi") && !deviceInfoExtracted) {
+                    Log.d(TAG, CLASS + " → Extrayendo información del dispositivo...");
+                    deviceInfoExtracted = true;
+                    String extractDeviceInfoScript =
+                            "var data = {};" +
+                                    "data.Firmware=document.querySelector('.span_deviceinfo#swversion')?.innerText||'No disponible';" +
+                                    "data.Serial=document.querySelector('.span_deviceinfo#gsn')?.innerText||'No disponible';" +
+                                    "data.Potencia=document.querySelector('.span_deviceinfo#opticalRX')?.innerText||'No disponible';" +
+                                    "data.Ssid2=document.getElementById('ssidname')?.innerText||'No disponible';" +
+                                    "data.Canal2=document.querySelector('.span_deviceinfo#cur_wifi_channel')?.innerText||'No disponible';" +
+                                    "data.Estado2=document.getElementById('wlStatus')?.innerText||'No disponible';" +
+                                    "data.Ssid5=document.getElementById('ssidname_5g')?.innerText||'No disponible';" +
+                                    "data.Canal5=document.querySelector('.span_deviceinfo#cur_wifi_channel_5g')?.innerText||'No disponible';" +
+                                    "data.Estado5=document.querySelector('.span_deviceinfo#wlStatus_5g')?.innerText||'No disponible';" +
+                                    "data.Voip=document.querySelector('.span_deviceinfo#linen_umber')?.innerText||'No disponible';" +
+                                    "JSON.stringify(data);";
 
-                        return;
-                    }
+                    view.evaluateJavascript(extractDeviceInfoScript, value -> {
+                        try {
+                            String jsonString = value.startsWith("\"") && value.endsWith("\"")
+                                    ? value.substring(1, value.length() - 1).replace("\\\"", "\"")
+                                    : value;
 
-                    // Extraer deviceinfo
-                    if (!deviceInfoExtracted && urlLower.contains("deviceinfo.cgi")) {
-                        deviceInfoExtracted = true;
-                        Log.d(TAG, "📄 Extrayendo información del dispositivo...");
-                        String extractScript =
-                                " (function(){ var data={}; try{ " +
-                                        "var get = function(sel){ var e=document.querySelector(sel); if(!e) return ''; return (e.innerText||e.value||'').trim(); };" +
-                                        "data.Firmware = get('#swversion') || get('.span_deviceinfo#swversion') || get('.swversion');" +
-                                        "data.Serial = get('#gsn') || get('.span_deviceinfo#gsn');" +
-                                        "data.Potencia = get('#opticalRX') || get('.span_deviceinfo#opticalRX');" +
-                                        "data.Ssid2 = (document.getElementById('ssidname') && document.getElementById('ssidname').innerText) || '';" +
-                                        "data.Canal2 = get('#cur_wifi_channel') || get('.span_deviceinfo#cur_wifi_channel');" +
-                                        "data.Estado2 = (document.getElementById('wlStatus') && document.getElementById('wlStatus').innerText) || '';" +
-                                        "data.Ssid5 = (document.getElementById('ssidname_5g') && document.getElementById('ssidname_5g').innerText) || '';" +
-                                        "data.Canal5 = get('#cur_wifi_channel_5g') || get('.span_deviceinfo#cur_wifi_channel_5g');" +
-                                        "data.Estado5 = get('#wlStatus_5g') || '';" +
-                                        "data.Voip = get('#linen_umber') || get('.span_deviceinfo#linen_umber') || '';" +
-                                        "return JSON.stringify(data);" +
-                                        "}catch(e){return JSON.stringify({Error: String(e)});} })();";
-                        view.evaluateJavascript(extractScript, value -> runIfNotCancelled(() -> {
-                            try {
-                                Log.d(TAG, "Raw deviceinfo JS value: " + value);
-                                // Normalizar: value viene con comillas dobles por evaluateJavascript
-                                String jsonString = value;
-                                if (jsonString == null || jsonString.trim().isEmpty() || jsonString.equals("null")) {
-                                    throw new JSONException("JS returned empty/null");
-                                }
-                                // quitar comillas exteriores si las tuviera
-                                if (jsonString.startsWith("\"") && jsonString.endsWith("\"")) {
-                                    jsonString = jsonString.substring(1, jsonString.length() - 1)
-                                            .replace("\\\\", "\\")
-                                            .replace("\\\"", "\"");
-                                }
-                                JSONObject json = new JSONObject(jsonString);
+                            JSONObject json = new JSONObject(jsonString);
 
-                                resultado.setFirmware(filtrar(json.optString("Firmware", "No disponible")));
-                                resultado.setSerial(filtrar(json.optString("Serial", "No disponible")));
-                                resultado.setPotencia(filtrar(json.optString("Potencia", "No disponible")));
-                                resultado.setSsid2(filtrar(json.optString("Ssid2", "No disponible")));
-                                resultado.setCanal2(filtrar(json.optString("Canal2", "No disponible")));
-                                resultado.setEstado2(filtrar(json.optString("Estado2", "No disponible")));
-                                resultado.setSsid5(filtrar(json.optString("Ssid5", "No disponible")));
-                                resultado.setCanal5(filtrar(json.optString("Canal5", "No disponible")));
-                                resultado.setEstado5(filtrar(json.optString("Estado5", "No disponible")));
-                                resultado.setVoip(filtrar(json.optString("Voip", "No disponible")));
+                            resultado.setFecha(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                            resultado.setCatalogo(catal);
+                            resultado.setModelo(model.replace("device_model ",""));
+                            resultado.setMultiprobador(multi);
+                            resultado.setFirmware(json.optString("Firmware", "No disponible"));
+                            resultado.setSerial(json.optString("Serial", "No disponible"));
+                            resultado.setPotencia(json.optString("Potencia", "No disponible"));
+                            resultado.setSsid2(json.optString("Ssid2", "No disponible"));
+                            resultado.setCanal2(json.optString("Canal2", "No disponible"));
+                            resultado.setEstado2(json.optString("Estado2", "No disponible"));
+                            resultado.setSsid5(json.optString("Ssid5", "No disponible"));
+                            resultado.setCanal5(json.optString("Canal5", "No disponible"));
+                            resultado.setEstado5(json.optString("Estado5", "No disponible"));
+                            resultado.setVoip(json.optString("Voip", "No disponible"));
 
-                                Log.d(TAG, "✅ Info dispositivo extraída: " + resultado.toString());
+                            Log.d(TAG, CLASS + " → Datos extraídos correctamente");
 
-                                webViewRef.postDelayed(() -> runIfNotCancelled(() ->
-                                        webViewRef.loadUrl("http://192.168.1.1:8000/cgi-bin/multipuesto.cgi")), 3000);
+                        } catch (JSONException e) {
+                            Log.e(TAG, CLASS + " → Error parseando JSON: " + e.getMessage());
+                        }
 
-                            } catch (JSONException e) {
-                                Log.e(TAG, "❌ Error parseando JSON: " + e.getMessage());
-                                if (listener != null && !cancelado) listener.onHguResult(false, null, 500);
-                            }
-                        }));
-                        return;
-                    }
+                        Log.d(TAG, CLASS + " → Cargando multipuesto.cgi...");
+                        webView.loadUrl("http://192.168.1.1:8000/cgi-bin/multipuesto.cgi");
+                    });
+                }
 
-                    // extraer usuario PPP
-                    if (urlLower.contains("multipuesto.cgi")) {
-                        Log.d(TAG, "📄 Extrayendo usuario PPP...");
-                        String extractUser = "(function(){ try{ var v=document.querySelector('input#pppUserName')||document.querySelector('input[name=pppUserName]'); return (v && (v.value||v.innerText))? (v.value||v.innerText) : 'N/A'; }catch(e){return 'N/A';}})();";
-                        view.evaluateJavascript(extractUser, value -> runIfNotCancelled(() -> {
-                            String usuario = "N/A";
-                            if (value != null) usuario = value.replace("\"", "");
-                            resultado.setUsuario(filtrar(usuario));
-                            Log.d(TAG, "🏁 Resultado final HGU2741: " + resultado.toString());
-                            if (listener != null && !cancelado) listener.onHguResult(true, resultado, 200);
-                        }));
-                    }
-                });
+                // === EXTRAER USUARIO PPP ===
+                else if (url.contains("multipuesto.cgi")) {
+                    Log.d(TAG, CLASS + " → Extrayendo usuario PPP...");
+                    String extractPppUserNameScript = "document.querySelector('input#pppUserName')?.value || 'N/A';";
+                    view.evaluateJavascript(extractPppUserNameScript, value -> {
+                        resultado.setUsuario(value.replace("\"", ""));
+                        Log.d(TAG, CLASS + " → Usuario PPP: " + resultado.getUsuario());
+                        if (listener != null && !cancelado) {
+                            listener.onHgu2741Result(true, resultado, 200);
+                            Log.d(TAG, CLASS + " → Proceso completado correctamente");
+                        }
+                    });
+                }
             }
         });
 
-        Log.d(TAG, "🌍 Cargando página inicial HGU2741...");
-        webViewRef.loadUrl("http://192.168.1.1:8000/");
+        Log.d(TAG, CLASS + " → Cargando página inicial...");
+        webView.loadUrl("http://192.168.1.1:8000/");
+    }
+
+    public void cancelar() {
+        cancelado = true;
+        Log.d(TAG, CLASS + " → Proceso cancelado por el usuario.");
+        if (webViewRef != null) {
+            try {
+                webViewRef.stopLoading();
+                webViewRef.loadUrl("about:blank");
+                webViewRef.clearHistory();
+                webViewRef.clearCache(true);
+            } catch (Exception e) {
+                Log.e(TAG, CLASS + " → Error deteniendo WebView: " + e.getMessage());
+            }
+        }
     }
 }
