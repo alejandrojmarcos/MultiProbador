@@ -42,6 +42,7 @@ public class Prueba {
     public void setCatalogo(String catalogo) {
         this.catalogo = catalogo;
     }
+    public String getCatalogo() { return this.catalogo; }
 
     public Prueba(WebView webView,boolean[] puertosSeleccionados, Context context, TextView tvSalida,
                   Button btnComenzar, Button btnEnviar, PortMap portMap) {
@@ -400,4 +401,6 @@ public class Prueba {
             appendSalida("❌ Error preparando envío de correo\n");
         }
     }
+
+
 }

@@ -1,5 +1,6 @@
 package com.ajmarcos.multiprobador;
 
+import android.app.AlertDialog;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.WebView;
@@ -17,7 +18,8 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox[] arrayCheckBoxSeleccionPuerto;
     private Button [] arrayBotonesPuerto;
     private TextView tvSalida;
-    private String TAG = "Deploy";
+    private final String TAG = "Deploy";
+    private final String CLASS = getClass().getSimpleName();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,60 +63,87 @@ public class MainActivity extends AppCompatActivity {
         PortMap portMap = new PortMap();
         Prueba prueba = new Prueba(webView,puertosSeleccionados, this, tvSalida, btnComenzar, btnEnviar, portMap);
 
-        // Listener del botón Comenzar
-        btnComenzar.setOnClickListener(v -> {
-            // Abrir diálogo de selección de lote y catálogo
-            mostrarDialogoLoteCatalogo(prueba, portMap);
-        });
+        btnComenzar.setOnClickListener(v -> mostrarDialogoLoteCatalogo());
+
     }
 
-        private void mostrarDialogoLoteCatalogo(Prueba prueba, PortMap portMap) {
-        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
-        builder.setTitle("Seleccionar lote de equipos");
+    private void mostrarDialogoLoteCatalogo() {
+        AlertDialog.Builder builderTipo = new AlertDialog.Builder(this);
+        builderTipo.setTitle("Seleccionar tipo de lote");
 
-        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
-        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
-        layout.setPadding(50, 40, 50, 10);
+        String[] tipos = {"Logística", "Revisador", "Garantía"};
+        builderTipo.setItems(tipos, (dialog, whichTipo) -> {
+            String tipoSeleccionado = tipos[whichTipo];
 
-        android.widget.Spinner spinnerCatalogo = new android.widget.Spinner(this);
-        String[] lotes = {"10206110004", "10206110006", "10206110010", "10206110029"};
-        android.widget.ArrayAdapter<String> adapterCatalogo = new android.widget.ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, lotes);
-        adapterCatalogo.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            spinnerCatalogo.setAdapter(adapterCatalogo);
-
-        layout.addView(spinnerCatalogo);
-        builder.setView(layout);
-
-        builder.setPositiveButton("Aceptar", (dialog, which) -> {
-            String catalogoSeleccionado = spinnerCatalogo.getSelectedItem().toString();
-
-
-            for (int i = 0; i < arrayCheckBoxSeleccionPuerto.length; i++) {
-                puertosSeleccionados[i] = arrayCheckBoxSeleccionPuerto[i].isChecked();
+            String[] lotes;
+            switch (tipoSeleccionado) {
+                case "Logística":
+                    lotes = new String[]{
+                            "10206110004 HGU Averia",
+                            "10206110006 HGU Provision",
+                            "10206110010 WIFI6 Provision",
+                            "10206110029 WIFI6 Averia"
+                    };
+                    break;
+                case "Revisador":
+                case "Garantía":
+                    lotes = new String[]{
+                            "10206110004 HGU",
+                            "10206110029 WIFI6"
+                    };
+                    break;
+                default:
+                    lotes = new String[]{};
+                    break;
             }
 
-            prueba.setCatalogo(catalogoSeleccionado);
-            Log.d(TAG, "Lote seleccionado: " + catalogoSeleccionado);
+            AlertDialog.Builder builderLote = new AlertDialog.Builder(this);
+            builderLote.setTitle("Seleccionar lote de " + tipoSeleccionado);
+            builderLote.setItems(lotes, (dialogLote, whichLote) -> {
+                String catalogoSeleccionado = lotes[whichLote];
 
+                // ✅ SOLO AQUÍ se crea la prueba
+                PortMap portMap = new PortMap();
+                puertosSeleccionados = new boolean[arrayCheckBoxSeleccionPuerto.length];
+                for (int i = 0; i < arrayCheckBoxSeleccionPuerto.length; i++) {
+                    puertosSeleccionados[i] = arrayCheckBoxSeleccionPuerto[i].isChecked();
+                }
 
+                WebView webView = findViewById(R.id.webViewScrap);
+                Prueba prueba = new Prueba(webView, puertosSeleccionados, this, tvSalida, btnComenzar, btnEnviar, portMap);
+                prueba.setCatalogo(tipoSeleccionado + "-" + catalogoSeleccionado);
 
+                Log.d(TAG, CLASS + ": Selección => " + prueba.getCatalogo());
 
-            portMap.apagarTodasLasIPs((success, salida) -> {
-                runOnUiThread(() -> {
+                portMap.apagarTodasLasIPs((success, salida) -> runOnUiThread(() -> {
                     if (success) {
                         tvSalida.append("Todas las interfaces apagadas.\n");
-                        prueba.iniciar(); // empieza la secuencia
+                        prueba.iniciar(); // ✅ Solo acá se ejecuta la secuencia
                     } else {
                         tvSalida.append("Error apagando interfaces.\n");
                     }
-                });
+                }));
             });
+
+            builderLote.setNegativeButton("Cancelar", (dialogLote, whichLote) -> {
+                dialogLote.dismiss();
+                Log.d(TAG, CLASS + ": Cancelado lote de " + tipoSeleccionado);
+                tvSalida.append("Selección cancelada. No se inició ninguna secuencia.\n");
+                btnComenzar.setEnabled(true);
+            });
+
+            builderLote.show();
         });
 
-        builder.setNegativeButton("Cancelar", (dialog, which) -> dialog.dismiss());
-        builder.setCancelable(false);
-        builder.show();
+        builderTipo.setNegativeButton("Cancelar", (dialog, which) -> {
+            dialog.dismiss();
+            Log.d(TAG, CLASS + ": Selección de tipo cancelada");
+            tvSalida.append("Selección cancelada. No se inició ninguna secuencia.\n");
+            btnComenzar.setEnabled(true);
+        });
+
+        builderTipo.show();
     }
+
 
 }
