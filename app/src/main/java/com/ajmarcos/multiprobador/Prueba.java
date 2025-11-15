@@ -134,6 +134,7 @@ public class Prueba {
      * Al finalizar (callback onDone) ejecuta el scraper asociado.
      * Firma del listener Ssh original: onSshResult(boolean success, String[] message, int code)
      */
+
     private void ejecutarDeviceModel(int puerto, Runnable onDone) {
         Ssh ssh = new Ssh("192.168.1.1", "Support", "Te2010An_2014Ma");
         ssh.setCommands(new String[]{"show device_model"});

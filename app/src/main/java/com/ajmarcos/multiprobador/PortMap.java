@@ -86,7 +86,9 @@ public class PortMap {
         Log.d(TAG, CLASS + " → Apagando subinterfaz " + subInterfaz + " en " + ip);
         String[] comandos = {
                 "sh",
-                "ip link set " + subInterfaz + " down",
+                "ip link set eth1.0 down",
+                "ip link set eth2.0 down",
+                "ip link set eth3.0 down",
                 "exit"
         };
         ejecutarSSH(ip, comandos, listener);
@@ -99,6 +101,9 @@ public class PortMap {
         Log.d(TAG, CLASS + " → Levantando subinterfaz " + subInterfaz + " en " + ip);
         String[] comandos = {
                 "sh",
+                "ip link set eth1.0 down",
+                "ip link set eth2.0 down",
+                "ip link set eth3.0 down",
                 "ip link set " + subInterfaz + " up",
                 "exit"
         };
