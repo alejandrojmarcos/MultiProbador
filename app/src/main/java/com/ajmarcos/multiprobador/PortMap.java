@@ -22,108 +22,107 @@ public class PortMap {
             new SubInterface("192.168.1.242", "eth2.0")  // puerto 8
     };
 
+    private String ultimaInterfazLevantada = null;
+    private String ultimaIPLevanta = null;
+
     public SubInterface[] getSubInterfaces() {
         return subInterfaces;
     }
 
-    /**
-     * Apaga todas las interfaces de los tres routers (.240, .241, .242)
-     */
+    // ---------------------------------------------------------
+    // Apagar todas las IPs de forma secuencial
+    // ---------------------------------------------------------
     public void apagarTodasLasIPs(PortMappingListener listener) {
-        Log.d(TAG, CLASS + " → Iniciando apagado de todas las IPs...");
-        String[] routers = {"192.168.1.240", "192.168.1.241", "192.168.1.242", "192.168.1.230"};
-        final int[] completados = {0};
+        Log.d(TAG, CLASS + " → Iniciando apagado de *todas* las IPs...");
 
-        for (String ip : routers) {
-            if ("192.168.1.230".equals(ip)) {
-                Log.d(TAG, CLASS + " → Apagando solo subinterfaz eth3.0 en " + ip);
-                apagarSubinterfaz(ip, "eth3.0", (success, salida) -> {
-                    Log.d(TAG, CLASS + " → Subinterfaz eth3.0 de " + ip + " apagada");
-                    synchronized (completados) {
-                        completados[0]++;
-                        if (completados[0] == routers.length && listener != null) {
-                            Log.d(TAG, CLASS + " → Todas las interfaces apagadas correctamente.");
-                            listener.onComplete(true, new String[]{"Todas las interfaces apagadas"});
-                        }
-                    }
-                });
-            } else {
-                Log.d(TAG, CLASS + " → Apagando interfaces completas en " + ip);
-                apagarInterfacesPorIp(ip, (success, salida) -> {
-                    Log.d(TAG, CLASS + " → Interfaces de " + ip + " apagadas");
-                    synchronized (completados) {
-                        completados[0]++;
-                        if (completados[0] == routers.length && listener != null) {
-                            Log.d(TAG, CLASS + " → Todas las interfaces apagadas correctamente.");
-                            listener.onComplete(true, new String[]{"Todas las interfaces apagadas"});
-                        }
-                    }
-                });
-            }
+        String[] routers = {"192.168.1.230", "192.168.1.240", "192.168.1.241", "192.168.1.242"};
+        apagarRoutersSecuencial(routers, 0, listener);
+    }
+
+    private void apagarRoutersSecuencial(String[] routers, int index, PortMappingListener listener) {
+        if (index >= routers.length) {
+            if (listener != null) listener.onComplete(true, new String[]{"Todas las interfaces apagadas"});
+            return;
+        }
+
+        String ip = routers[index];
+        if ("192.168.1.230".equals(ip)) {
+            Log.d(TAG, "\n══════════ ROUTER " + ip + " → APAGAR eth3.0 ══════════");
+            apagarSubinterfaz(ip, "eth3.0", (success, salida) -> {
+                Log.d(TAG, CLASS + " → Finalizado apagado en " + ip);
+                apagarRoutersSecuencial(routers, index + 1, listener);
+            });
+        } else {
+            Log.d(TAG, "\n══════════ ROUTER " + ip + " → APAGAR TODAS LAS INTERFACES ══════════");
+            apagarInterfacesPorIp(ip, (success, salida) -> {
+                Log.d(TAG, CLASS + " → Finalizado apagado en " + ip);
+                apagarRoutersSecuencial(routers, index + 1, listener);
+            });
         }
     }
 
-    /**
-     * Apaga todas las subinterfaces de una IP (eth1.0, eth2.0, eth3.0)
-     */
+    // ---------------------------------------------------------
+    // Apagar subinterfaces completas
+    // ---------------------------------------------------------
     public void apagarInterfacesPorIp(String ip, PortMappingListener listener) {
-        Log.d(TAG, CLASS + " → Apagando interfaces de IP: " + ip);
+        Log.d(TAG, CLASS + " → Preparando comandos de apagado para " + ip);
         String[] comandos = {
-                "sh",
                 "ip link set eth1.0 down",
                 "ip link set eth2.0 down",
-                "ip link set eth3.0 down",
-                "exit"
+                "ip link set eth3.0 down"
         };
-
-        ejecutarSSH(ip, comandos, listener);
+        ejecutarSSHInteractivo(ip, comandos, listener);
     }
 
-    /**
-     * Apaga una sola subinterfaz, por ejemplo eth2.0
-     */
+    // ---------------------------------------------------------
+    // Apagar única subinterfaz
+    // ---------------------------------------------------------
     public void apagarSubinterfaz(String ip, String subInterfaz, PortMappingListener listener) {
         Log.d(TAG, CLASS + " → Apagando subinterfaz " + subInterfaz + " en " + ip);
-        String[] comandos = {
-                "sh",
-                "ip link set eth1.0 down",
-                "ip link set eth2.0 down",
-                "ip link set eth3.0 down",
-                "exit"
-        };
-        ejecutarSSH(ip, comandos, listener);
+        String[] comandos = {"ip link set " + subInterfaz + " down"};
+        ejecutarSSHInteractivo(ip, comandos, listener);
     }
 
-    /**
-     * Levanta una subinterfaz específica
-     */
-    public void levantarSubinterfaz(String ip, String subInterfaz, PortMappingListener listener) {
-        Log.d(TAG, CLASS + " → Levantando subinterfaz " + subInterfaz + " en " + ip);
-        String[] comandos = {
-                "sh",
-                "ip link set eth1.0 down",
-                "ip link set eth2.0 down",
-                "ip link set eth3.0 down",
-                "ip link set " + subInterfaz + " up",
-                "exit"
-        };
-        ejecutarSSH(ip, comandos, listener);
+    // ---------------------------------------------------------
+    // Levantar subinterfaz (Versión corregida: solo levanta la interfaz)
+    // ---------------------------------------------------------
+    public void levantarSubinterfaz(String routerIP, String subInterfaz, PortMappingListener listener) {
+        Log.d(TAG, CLASS + " → Levantando SOLAMENTE subinterfaz " + subInterfaz + " en " + routerIP);
+        ultimaInterfazLevantada = subInterfaz;
+        ultimaIPLevanta = routerIP;
+
+        // Paso 1: levantar subinterfaz en router
+        String[] comandosLevantar = {"ip link set " + subInterfaz + " up"};
+        ejecutarSSHInteractivo(routerIP, comandosLevantar, listener);
     }
 
-    /**
-     * Ejecución SSH genérica
-     */
-    private void ejecutarSSH(String ip, String[] comandos, PortMappingListener listener) {
-        Log.d(TAG, CLASS + " → Ejecutando comandos SSH en " + ip);
-        Ssh ssh = new Ssh(ip, "Support", "Te2010An_2014Ma");
+    // ---------------------------------------------------------
+    // APAGAR ÚLTIMA INTERFAZ
+    // ---------------------------------------------------------
+    public void apagarUltimaInterfaz(PortMappingListener listener) {
+        if (ultimaInterfazLevantada == null || ultimaIPLevanta == null) {
+            Log.d(TAG, CLASS + " → No hay última interfaz registrada para apagar.");
+            if (listener != null) listener.onComplete(true, new String[]{"Nada que apagar"});
+            return;
+        }
+        String ip = ultimaIPLevanta;
+        String subif = ultimaInterfazLevantada;
+        ultimaInterfazLevantada = null;
+        ultimaIPLevanta = null;
+
+        Log.d(TAG, CLASS + " → Apagando ULTIMA interfaz usada: " + subif + " en " + ip);
+        String[] comandos = {"ip link set " + subif + " down"};
+        ejecutarSSHInteractivo(ip, comandos, listener);
+    }
+
+    // ---------------------------------------------------------
+    // Ejecuta comandos usando SshInteractivo
+    // ---------------------------------------------------------
+    private void ejecutarSSHInteractivo(String ip, String[] comandos, PortMappingListener listener) {
+        SshInteractivo ssh = new SshInteractivo(ip, "Support", "Te2010An_2014Ma");
         ssh.setCommands(comandos);
-        ssh.setSshListener((success, message, code) -> {
-            if (!success) {
-                Log.e(TAG, CLASS + " → Error SSH en " + ip + " (code=" + code + ")");
-            } else {
-                Log.d(TAG, CLASS + " → SSH ejecutado correctamente en " + ip);
-            }
-            if (listener != null) listener.onComplete(success, message);
+        ssh.setSshListener((success, salida, code) -> {
+            if (listener != null) listener.onComplete(success, salida);
         });
         ssh.start();
     }

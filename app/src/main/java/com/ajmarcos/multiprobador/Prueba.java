@@ -10,13 +10,10 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.TextView;
-
 import androidx.core.content.FileProvider;
-
 import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.model.ZipParameters;
 import net.lingala.zip4j.model.enums.EncryptionMethod;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -35,7 +32,6 @@ public class Prueba {
     private String catalogo = "";
     private String TAG = "Deploy";
     private String MultiLocal = "Bella Vista 1";
-
     private final ArrayList<Resultado> resultados = new ArrayList<>();
     private int currentIndex = 0;
 
@@ -111,6 +107,7 @@ public class Prueba {
 
         // levantar subinterfaz correspondiente
         SubInterface si = portMap.getSubInterfaces()[puerto];
+        // NOTA: portMap.levantarSubinterfaz ahora SOLO levanta la interfaz.
         portMap.levantarSubinterfaz(si.getIp(), si.getNombre(), (success, salida) -> {
             if (!success) {
                 appendSalida("❌ Error levantando interfaz " + si.getNombre() + " en " + si.getIp() + "\n");
@@ -130,25 +127,66 @@ public class Prueba {
     }
 
     /**
-     * Ejecuta "show device_model" vía SSH al equipo de gestión (192.168.1.1).
-     * Al finalizar (callback onDone) ejecuta el scraper asociado.
-     * Firma del listener Ssh original: onSshResult(boolean success, String[] message, int code)
+     * Ejecuta "show device_model" vía SSH anidado al equipo de gestión (192.168.1.1).
+     * Se conecta al router 24X y desde allí al 1.1.
      */
-
+    /**
+     * Ejecuta "show device_model" vía SSH anidado al equipo de gestión (192.168.1.1).
+     * Se conecta al router 24X y desde allí al 1.1.
+     */
     private void ejecutarDeviceModel(int puerto, Runnable onDone) {
-        Ssh ssh = new Ssh("192.168.1.1", "Support", "Te2010An_2014Ma");
-        ssh.setCommands(new String[]{"show device_model"});
+        SubInterface si = portMap.getSubInterfaces()[puerto];
+        String routerIp = si.getIp(); // IP del router de control (240, 241, 242)
+
+        // Se conecta al router y envía los comandos anidados
+        SshInteractivo ssh = new SshInteractivo(routerIp, "Support", "Te2010An_2014Ma");
+
+        // Comandos para la doble conexión:
+        ssh.setCommands(new String[]{
+                "ssh -o StrictHostKeyChecking=no Support@192.168.1.1",
+                "show device_model",
+                "exit"
+        });
+
         ssh.setSshListener((success, message, code) -> mainHandler.post(() -> {
             appendSalida("--- Resultado device_model Puerto " + (puerto + 1) + " ---\n");
 
             String modelo = "Modelo desconocido";
-            if (success && message != null && message.length > 2) {
-                String linea = message[2];
-                if (linea != null) {
-                    linea = linea.trim();
-                    if (!linea.isEmpty()) modelo = linea;
+
+            // --- Lógica de Extracción de Modelo MÁS FLEXIBLE (CORREGIDA) ---
+            if (success && message != null) {
+                int showModelIndex = -1;
+
+                // 1. Encontrar dónde se ejecutó el comando 'show device_model'
+                for (int i = 0; i < message.length; i++) {
+                    if (message[i] != null && message[i].trim().contains("show device_model")) {
+                        showModelIndex = i;
+                        break;
+                    }
+                }
+
+                // 2. Si lo encontramos, asumimos que el modelo es la siguiente línea limpia
+                if (showModelIndex != -1 && showModelIndex + 1 < message.length) {
+                    String posibleModelo = message[showModelIndex + 1].trim();
+
+                    // Aseguramos que no sea un prompt (> o #) o un mensaje de cierre de conexión.
+                    if (!posibleModelo.isEmpty() &&
+                            !posibleModelo.startsWith(">") &&
+                            !posibleModelo.startsWith("#") &&
+                            !posibleModelo.toLowerCase().contains("connection to")) {
+
+                        modelo = posibleModelo;
+                    }
                 }
             }
+
+            // Si el modelo es "Modelo desconocido" después del intento, registramos el fallo.
+            if (modelo.equals("Modelo desconocido")) {
+                appendSalida("⚠️ No se pudo obtener el modelo. Mensaje completo de salida SSH:\n" + (message != null ? String.join("\n", message) : "Nulo") + "\n");
+            }
+
+            // -----------------------------------------------------------------
+
             appendSalida("📡 " + modelo + "\n");
 
             // Ejecutar scraper asociado; cuando el scraper termine, se debe llamar a apagarYContinuar(puerto,onDone)
@@ -160,11 +198,37 @@ public class Prueba {
     /**
      * Ejecuta el scraper según modelo. Llama a apagarYContinuar(puerto,onDone) cuando termina.
      */
+// En Prueba.java
+
+    /**
+     * Ejecuta el scraper según modelo. Llama a apagarYContinuar(puerto,onDone) cuando termina.
+     */
     private void ejecutarScraperPorModelo(int puerto, String modelo, Runnable onDone) {
         prepararWebView();
 
+        // Necesitamos la IP del router actual para el SSH anidado
+        SubInterface si = portMap.getSubInterfaces()[puerto];
+        String routerIp = si.getIp();
+
         // cada HguXXXX debe llamar a su listener que finalmente invoque procesarResultadoScrap(..., onDone)
-        if (modelo.contains("2541")) {
+
+        // =================================================================
+        // >>> NUEVO BLOQUE: Manejo del modelo 8145 vía SSH <<<
+        // =================================================================
+        if (modelo.contains("8145")) {
+            appendSalida("⚙️ Detectado: Modelo 8145. Iniciando Scraping vía SSH anidado (Clase Hgu8145)...\n");
+
+            Hgu8145 hgu = new Hgu8145();
+            hgu.setModel(modelo);
+            hgu.setMulti(MultiLocal);
+            hgu.setCatal(catalogo);
+
+            // El listener llama al procesador final de la clase Prueba
+            hgu.setHgu8145Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
+
+            // Inicia el proceso de scraping SSH, pasando la IP del router de control
+            hgu.scrap8145Ssh(routerIp);
+        } else if (modelo.contains("2541")) {
             Hgu2541 hgu = new Hgu2541();
             hgu.setModel(modelo);
             hgu.setMulti(MultiLocal);
@@ -179,7 +243,14 @@ public class Prueba {
             hgu.setCatal(catalogo);
             hgu.setHgu2741Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone)
             );
-            hgu.scrap2741(this.webView); // o su propio WebView interno
+            hgu.scrap2741(this.webView);
+
+        } else if (modelo.contains("2742")) {
+            // ... (resto de los bloques existentes) ...
+
+            // =================================================================
+            // >>> Bloque final de modelo no soportado <<<
+            // =================================================================
 
         } else if (modelo.contains("2742")) {
             Hgu2742 hgu = new Hgu2742();
@@ -233,9 +304,11 @@ public class Prueba {
             appendSalida("SSID5: " + resultado.getSsid5() + ", Canal5: " + resultado.getCanal5() + ", Estado5: " + resultado.getEstado5());
             appendSalida("Usuario: " + resultado.getUsuario());
             appendSalida("VoIP: " + resultado.getVoip());
+            resultado.setCatalogo(this.getCatalogo());
             appendSalida("Catalogo: " + resultado.getCatalogo());
             appendSalida("Falla: " + resultado.getFalla());
             appendSalida("Condicion: " + resultado.getCondicion());
+            resultado.setMultiprobador(MultiLocal);
             appendSalida("Multiprobador: " + resultado.getMultiprobador());
         } else {
             appendSalida("❌ Scrap falló [" + modelo + "] Puerto " + (puerto + 1) + "\n");
@@ -269,6 +342,7 @@ public class Prueba {
         }
     }
 
+    // 🔥 EL MÉTODO FALTANTE 🔥
     private void appendSalida(String texto) {
         mainHandler.post(() -> {
             if (tvSalida != null) {
@@ -313,8 +387,8 @@ public class Prueba {
 
     private boolean tieneInternet() {
         try {
-            // Envía 10 paquetes ICMP al host
-            Process p = Runtime.getRuntime().exec("ping -c 10 192.168.1.1");
+            // Envía 10 paquetes ICMP a 8.8.8.8 para verificar internet real
+            Process p = Runtime.getRuntime().exec("ping -c 10 8.8.8.8");
             int returnVal = p.waitFor(); // espera a que termine el ping
             return (returnVal == 0);
         } catch (Exception e) {

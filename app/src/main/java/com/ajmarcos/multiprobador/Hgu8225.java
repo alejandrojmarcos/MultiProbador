@@ -274,6 +274,7 @@ public class Hgu8225 {
 
                     if (listener != null && !cancelado)
                         listener.onHgu8225Result(true, resultado, 201);
+
                 }
             }
         });
