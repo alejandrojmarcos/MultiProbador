@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="16dp"
+                android:text="Puertos"/>
+            <Spinner
+                android:id="@+id/spinnerOpciones"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="Clave WiFi APs" />
+            <EditText
+                android:id="@+id/etClaveWiFi"
+                android:inputType="textPassword"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="Red Internet"/>
+            <EditText
+                android:id="@+id/etRedConInternet"
+                android:inputType="text"
+                android:text="Telefonica Guest"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="Clave Internet"/>
+            <EditText
+                android:id="@+id/etClaveRedConInternet"
+                android:inputType="textPassword"
+                android:text="TelefonicA_InvitadoS"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="Potencia Optica"/>
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content">
+
+                <CheckBox
+                    android:id="@+id/cbPotenciaMenu"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    />
+
+
+                <EditText
+                    android:id="@+id/etPotenciaMenu"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:inputType="numberSigned"
+                    android:text="-20" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="dBm"/>
+
+
+                <CheckBox
+                    android:id="@+id/cbPotenciaGrave"
+                    android:text="Rechazo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    />
+
+
+
+
+            </LinearLayout>
+
+
+
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="SSID"/>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <CheckBox
+                    android:id="@+id/cbSSID2Menu"
+
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="2.4" />
+
+                <CheckBox
+                    android:id="@+id/cbSSID5Menu"
+
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="5.8" />
+
+
+                <CheckBox
+                    android:id="@+id/cbSSIDGrave"
+                    android:text="Rechazo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    />
+
+
+            </LinearLayout>
+
+
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="Canal"/>
+
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <CheckBox
+                    android:id="@+id/cbCanal2Menu"
+
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="2.4" />
+
+                <CheckBox
+                    android:id="@+id/cbCanal5Menu"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="5.8" />
+                <CheckBox
+                    android:id="@+id/cbCanalGrave"
+                    android:text="Rechazo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    />
+
+
+            </LinearLayout>
+
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="Estado"/>
+
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <CheckBox
+                    android:id="@+id/cbEstado2Menu"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="2.4" />
+
+                <CheckBox
+                    android:id="@+id/cbEstado5Menu"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="5.8" />
+
+                <CheckBox
+                    android:id="@+id/cbEstadoGrave"
+                    android:text="Rechazo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    />
+
+
+            </LinearLayout>
+
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="RSSI"/>
+
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <CheckBox
+                    android:id="@+id/cbRssi2Menu"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="2.4" />
+
+                <EditText
+                    android:id="@+id/etRssiMenu"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:inputType="numberSigned"
+                    android:text="-50" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="dB" />
+                <CheckBox
+                    android:id="@+id/cbRssi5Menu"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="5.8" />
+                <EditText
+                    android:id="@+id/etRssi5Menu"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:inputType="numberSigned"
+                    android:text="-50" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="dB" />
+
+                <CheckBox
+                    android:id="@+id/cbRSSIGrave"
+                    android:text="Rechazo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    />
+
+
+
+            </LinearLayout>
+
+
+
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="VOIP"/>
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+            <CheckBox
+                android:id="@+id/cbVoipMenu"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Habilitado" />
+            <CheckBox
+                android:id="@+id/cbVOIPGrave"
+                android:text="Rechazo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                />
+            </LinearLayout>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="Usuario PPPOE"/>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+            <CheckBox
+                android:id="@+id/cbUsuarioMenu"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Habilitado" />
+            <CheckBox
+                android:id="@+id/cbUsuarioGrave"
+                android:text="Rechazo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="18dp"
+                android:text="Firmwares habilitados"/>
+<LinearLayout
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal">
+            <CheckBox
+                android:id="@+id/cbFirmwareMenu"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Habilitado" />
+            <CheckBox
+                android:id="@+id/cbFirmwareGrave"
+                android:text="Rechazo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                />
+        </LinearLayout>
+
+            <EditText
+                android:id="@+id/etFirmwareMenu"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <Button
+                    android:id="@+id/btnFirmware"
+                    android:layout_width="0dp"  android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Firmware"/>
+
+                <Button
+                    android:id="@+id/btnDefault"
+                    android:layout_width="0dp"  android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Default"
+                    />
+
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnGuardar"
+                    android:layout_width="0dp"  android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Guardar" />
+                <Button
+                    android:id="@+id/btnCancelar"
+                    android:layout_width="0dp"  android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Cancelar"/>
+
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

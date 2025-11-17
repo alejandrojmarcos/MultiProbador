@@ -3,10 +3,15 @@ package com.ajmarcos.multiprobador;
 import android.app.AlertDialog;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
@@ -50,6 +55,42 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.button7),
                 findViewById(R.id.button8)
         };
+
+        // Asegúrate de que estos arrays estén declarados como variables de clase o pasados al método
+// CheckBox[] arrayCheckBoxSeleccionPuerto;
+// Button[] arrayBotonesPuerto;
+
+// Asumiendo que ambos arrays tienen el mismo tamaño (8 elementos)
+        if (arrayBotonesPuerto.length == arrayCheckBoxSeleccionPuerto.length) {
+
+            for (int i = 0; i < arrayBotonesPuerto.length; i++) {
+                final int index = i; // Necesario para usar 'i' dentro de los listeners
+
+                // 1. Manejo del Click Corto (Alternar CheckBox)
+                arrayBotonesPuerto[i].setOnClickListener(v -> {
+                    // Alterna el estado del CheckBox correspondiente
+                    boolean isChecked = arrayCheckBoxSeleccionPuerto[index].isChecked();
+                    arrayCheckBoxSeleccionPuerto[index].setChecked(!isChecked);
+
+                    // Opcional: Mostrar un mensaje
+                    Toast.makeText(this, "Puerto " + (index + 1) + ": Checkbox " + (arrayCheckBoxSeleccionPuerto[index].isChecked() ? "SELECCIONADO" : "DESELECCIONADO"), Toast.LENGTH_SHORT).show();
+                });
+
+                // 2. Manejo del Long Click (Mostrar Toast Inicial)
+                arrayBotonesPuerto[i].setOnLongClickListener(v -> {
+                    // Muestra un Toast indicando el puerto
+                    Toast.makeText(this, "LONG CLICK en Puerto " + (index + 1) + ". Aquí iría la prueba individual.", Toast.LENGTH_LONG).show();
+
+                    // Devuelve true para indicar que consumimos el evento (para que no se dispare también el click corto)
+                    return true;
+                });
+            }
+
+        } else {
+            // Manejo de error si los arrays no coinciden en tamaño
+            Log.e("MainActivity", "Error: Los arrays de botones y checkboxes no coinciden en tamaño.");
+        }
+
 
         btnComenzar = findViewById(R.id.buttonComenzar);
         btnEnviar = findViewById(R.id.buttonEnviar);
@@ -143,6 +184,39 @@ public class MainActivity extends AppCompatActivity {
         });
 
         builderTipo.show();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // 1. Infla (carga) el archivo XML del menú en la barra de tareas.
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // 2. Maneja el clic en los ítems del menú.
+        int id = item.getItemId();
+
+        if (id == R.id.action_settings) {
+            Toast.makeText(this, "Abriendo Configuración...", Toast.LENGTH_SHORT).show();
+
+            SettingsDialogFragment dialog = new SettingsDialogFragment();
+
+            // Usa getSupportFragmentManager() para mostrar el DialogFragment
+            dialog.show(getSupportFragmentManager(), "SettingsDialogTag");
+            // Aquí iría la lógica para iniciar la Activity de Settings
+            return true;
+        }
+
+        if (id == R.id.action_acerca_de) {
+            Toast.makeText(this, "Información de la aplicación Multiprobador.", Toast.LENGTH_LONG).show();
+            // Aquí iría la lógica para mostrar un Dialog o abrir la Activity "Acerca de"
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
     }
 
 
