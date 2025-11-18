@@ -23,7 +23,7 @@ import com.google.android.play.core.appupdate.AppUpdateManagerFactory;
 import com.google.android.play.core.install.model.AppUpdateType;
 import com.google.android.play.core.install.model.UpdateAvailability;
 import com.google.android.play.core.install.model.InstallStatus;
-
+import com.google.firebase.messaging.FirebaseMessaging;
 import com.ajmarcos.multiprobador.ValidadorResultado.ResultadoCompleto;
 import com.ajmarcos.multiprobador.ValidadorResultado.EstadoValidacion;
 
@@ -55,6 +55,26 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_8);
+
+        //firebase
+
+        // En onCreate:
+        FirebaseMessaging.getInstance().getToken()
+                .addOnCompleteListener(task -> {
+                    if (!task.isSuccessful()) {
+                        Log.w(TAG, "Fetching FCM registration token failed", task.getException());
+                        return;
+                    }
+
+                    // Get new FCM registration token
+                    String token = task.getResult();
+
+                    // Log and toast
+                    Log.d(TAG, "FCM Token: " + token);
+                    // Toast.makeText(MainActivity.this, "Token: " + token, Toast.LENGTH_SHORT).show();
+                });
+
+
 
         // 1. INICIALIZACIÓN DE IN-APP UPDATE MANAGER
         appUpdateManager = AppUpdateManagerFactory.create(this);

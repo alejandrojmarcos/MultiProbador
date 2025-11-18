@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "715701350288",
+    "project_id": "multiprobadorhgu",
+    "storage_bucket": "multiprobadorhgu.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:715701350288:android:ad2559b40c58830e088d15",
+        "android_client_info": {
+          "package_name": "com.ajmarcos.multiprobador"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDl1V1Sz6oEPrVjVJYOMCawhLkuLI3Vm9k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

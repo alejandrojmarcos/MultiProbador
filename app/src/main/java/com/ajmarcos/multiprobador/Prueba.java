@@ -45,6 +45,7 @@ public class Prueba {
     private String MultiLocal = "Bella Vista 1";
     private final ArrayList<Resultado> resultados = new ArrayList<>();
     private int currentIndex = 0;
+    private boolean probando;
 
     private final PruebaResultadoListener resultadoListener; // 👈 📢 NUEVA DECLARACIÓN
 
@@ -65,13 +66,16 @@ public class Prueba {
         this.btnEnviar = btnEnviar;
         this.webView = webView;
         this.resultadoListener = resultadoListener; // 👈 GUARDA LA REFERENCIA
+        this.probando=false;
 
         btnComenzar.setOnClickListener(v -> {
+
+            this.probando=true;
             btnComenzar.setEnabled(false);
             btnEnviar.setEnabled(false);
             resultados.clear();
             currentIndex = 0;
-            // arranca la secuencia secuencial
+            // arranca la secuencia
             ejecutarSiguientePuerto();
         });
 
@@ -369,6 +373,7 @@ public class Prueba {
             // 📢 ¡ACCIÓN CLAVE 1: ENVIAR A LA PANTALLA!
             mainHandler.post(() -> {
                 resultadoListener.onResultadoFinalizado(completo); // Llama a MainActivity
+                this.probando=false;
             });
 
         } else {

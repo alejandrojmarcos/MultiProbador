@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.google.gms.google.services)
 }
 
 android {
@@ -12,8 +13,8 @@ android {
         applicationId "com.ajmarcos.multiprobador"
         minSdk 26
         targetSdk 35
-        versionCode 4
-        versionName "1.4"
+        versionCode 5
+        versionName "1.5"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -40,6 +41,7 @@ dependencies {
     //implementation 'com.github.mwiede:jsch:0.2.16'
 
     implementation libs.constraintlayout
+    implementation libs.firebase.messaging
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core

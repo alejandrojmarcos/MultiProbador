@@ -10,4 +10,5 @@
     <color name="naranja">#FF9800</color>
     <color name="celeste2">#02F0FF</color>
     <color name="rojoclaro">#F4A3A0</color>
+    <color name="colorAccent">#00BCD4</color>
 </resources>
