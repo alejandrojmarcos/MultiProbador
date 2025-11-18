@@ -18,8 +18,19 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.ArrayList;
+// Prueba.java (Añadir estas importaciones y variables)
+import com.google.android.play.core.appupdate.AppUpdateManager;
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory;
+import com.google.android.play.core.install.model.AppUpdateType;
+import com.google.android.play.core.install.model.UpdateAvailability;
+import com.google.android.play.core.install.model.InstallStatus;
+import android.content.IntentSender;
+import android.app.Activity; // Necesario para iniciar el flujo
 
 public class Prueba {
+
+    private AppUpdateManager appUpdateManager;
+    private static final int MY_UPDATE_REQUEST_CODE = 101;
 
     private final boolean[] puertosSeleccionados;
     private final Context context;
@@ -35,13 +46,16 @@ public class Prueba {
     private final ArrayList<Resultado> resultados = new ArrayList<>();
     private int currentIndex = 0;
 
+    private final PruebaResultadoListener resultadoListener; // 👈 📢 NUEVA DECLARACIÓN
+
+
     public void setCatalogo(String catalogo) {
         this.catalogo = catalogo;
     }
     public String getCatalogo() { return this.catalogo; }
 
-    public Prueba(WebView webView,boolean[] puertosSeleccionados, Context context, TextView tvSalida,
-                  Button btnComenzar, Button btnEnviar, PortMap portMap) {
+    public Prueba(WebView webView, boolean[] puertosSeleccionados, Context context, TextView tvSalida,
+                  Button btnComenzar, Button btnEnviar, PortMap portMap, PruebaResultadoListener resultadoListener) { // 👈 CAMBIO AQUÍ
         this.puertosSeleccionados = puertosSeleccionados;
         this.context = context;
         this.tvSalida = tvSalida;
@@ -49,7 +63,8 @@ public class Prueba {
         this.portMap = portMap;
         this.btnComenzar = btnComenzar;
         this.btnEnviar = btnEnviar;
-        this.webView=webView;
+        this.webView = webView;
+        this.resultadoListener = resultadoListener; // 👈 GUARDA LA REFERENCIA
 
         btnComenzar.setOnClickListener(v -> {
             btnComenzar.setEnabled(false);
@@ -89,6 +104,46 @@ public class Prueba {
      * Busca el siguiente puerto seleccionado y lo procesa. No continúa hasta
      * que la cadena levantar->ssh->scrap->apagar complete y llame a onDone.
      */
+//    private void ejecutarSiguientePuerto() {
+//        // buscar siguiente puerto seleccionado
+//        while (currentIndex < puertosSeleccionados.length && !puertosSeleccionados[currentIndex]) {
+//            currentIndex++;
+//        }
+//
+//        if (currentIndex >= puertosSeleccionados.length) {
+//            appendSalida("\n✅ Secuencia finalizada.\n");
+//            mainHandler.post(() -> btnEnviar.setEnabled(true));
+//            btnComenzar.setEnabled(true);
+//            return;
+//        }
+//
+//        final int puerto = currentIndex;
+//        appendSalida("\n=== Configurando Puerto " + (puerto + 1) + " ===\n");
+//
+//        // levantar subinterfaz correspondiente
+//        SubInterface si = portMap.getSubInterfaces()[puerto];
+//        // NOTA: portMap.levantarSubinterfaz ahora SOLO levanta la interfaz.
+//        portMap.levantarSubinterfaz(si.getIp(), si.getNombre(), (success, salida) -> {
+//            if (!success) {
+//                appendSalida("❌ Error levantando interfaz " + si.getNombre() + " en " + si.getIp() + "\n");
+//                // avanzar al siguiente puerto
+//                currentIndex++;
+//                ejecutarSiguientePuerto();
+//                return;
+//            }
+//
+//            // esperar un poco y llamar a device_model (todo en secuencia)
+//            mainHandler.postDelayed(() -> ejecutarDeviceModel(puerto, () -> {
+//                // llamado cuando termina todo para este puerto (incluye apagar interfaces)
+//                currentIndex++;
+//                ejecutarSiguientePuerto();
+//            }), 1500);
+//        });
+//    }
+
+
+    // En Prueba.java
+
     private void ejecutarSiguientePuerto() {
         // buscar siguiente puerto seleccionado
         while (currentIndex < puertosSeleccionados.length && !puertosSeleccionados[currentIndex]) {
@@ -103,27 +158,33 @@ public class Prueba {
         }
 
         final int puerto = currentIndex;
-        appendSalida("\n=== Configurando Puerto " + (puerto + 1) + " ===\n");
 
-        // levantar subinterfaz correspondiente
-        SubInterface si = portMap.getSubInterfaces()[puerto];
-        // NOTA: portMap.levantarSubinterfaz ahora SOLO levanta la interfaz.
-        portMap.levantarSubinterfaz(si.getIp(), si.getNombre(), (success, salida) -> {
-            if (!success) {
-                appendSalida("❌ Error levantando interfaz " + si.getNombre() + " en " + si.getIp() + "\n");
-                // avanzar al siguiente puerto
-                currentIndex++;
-                ejecutarSiguientePuerto();
-                return;
-            }
+        // 📢 AÑADIR RETRASO AQUÍ (Ej. 3 segundos)
+        // Esto permite que las conexiones SSH previas se cierren completamente en el router.
+        appendSalida("⏳ Esperando estabilidad del sistema (3s)...");
 
-            // esperar un poco y llamar a device_model (todo en secuencia)
-            mainHandler.postDelayed(() -> ejecutarDeviceModel(puerto, () -> {
-                // llamado cuando termina todo para este puerto (incluye apagar interfaces)
-                currentIndex++;
-                ejecutarSiguientePuerto();
-            }), 1500);
-        });
+        mainHandler.postDelayed(() -> {
+            appendSalida("\n=== Configurando Puerto " + (puerto + 1) + " ===\n");
+
+            // levantar subinterfaz correspondiente
+            SubInterface si = portMap.getSubInterfaces()[puerto];
+
+            portMap.levantarSubinterfaz(si.getIp(), si.getNombre(), (success, salida) -> {
+                if (!success) {
+                    appendSalida("❌ Error levantando interfaz " + si.getNombre() + " en " + si.getIp() + "\n");
+                    currentIndex++;
+                    ejecutarSiguientePuerto();
+                    return;
+                }
+
+                // El retraso posterior a levantar la interfaz también es importante
+                mainHandler.postDelayed(() -> ejecutarDeviceModel(puerto, () -> {
+                    currentIndex++;
+                    ejecutarSiguientePuerto();
+                }), 2000); // Aumentado a 2000ms (2s)
+            });
+
+        }, 3000); // Retraso inicial de 3000ms
     }
 
     /**
@@ -145,7 +206,8 @@ public class Prueba {
         ssh.setCommands(new String[]{
                 "ssh -o StrictHostKeyChecking=no Support@192.168.1.1",
                 "show device_model",
-                "exit"
+                "exit",
+                "quit"
         });
 
         ssh.setSshListener((success, message, code) -> mainHandler.post(() -> {
@@ -245,12 +307,6 @@ public class Prueba {
             );
             hgu.scrap2741(this.webView);
 
-        } else if (modelo.contains("2742")) {
-            // ... (resto de los bloques existentes) ...
-
-            // =================================================================
-            // >>> Bloque final de modelo no soportado <<<
-            // =================================================================
 
         } else if (modelo.contains("2742")) {
             Hgu2742 hgu = new Hgu2742();
@@ -290,34 +346,50 @@ public class Prueba {
     private void procesarResultadoScrap(int puerto, String modelo, boolean success, Resultado resultado, int code, Runnable onDone) {
         if (resultado == null) resultado = new Resultado();
 
+        // 1. Cargar metadatos
+        resultado.setCatalogo(this.getCatalogo());
+        resultado.setMultiprobador(MultiLocal);
+
+        // 2. Ejecutar validación y obtener el contenedor completo
+        ValidadorResultado.ResultadoCompleto completo = ValidadorResultado.validar(resultado);
+
+        // Obtener los datos validados/modificados y la validación para el log
+        Resultado datosValidados = completo.getDatosModificados();
+        ValidadorResultado.ResultadoValidacion val = completo.getValidacion();
+
         if (success) {
-            ValidadorResultado.ResultadoValidacion val = ValidadorResultado.validar(resultado);
             appendSalida("✅ Scrap OK [" + modelo + "] Puerto " + (puerto + 1) + "\n");
             appendSalida("Validación: " + val.getMensaje() + "\n");
 
-            // Imprimir todos los valores de resultado
+            // Imprimir todos los valores de resultado (usando datosValidados)
             appendSalida("📊 Resultado completo:");
-            appendSalida("Serial: " + resultado.getSerial());
-            appendSalida("Firmware: " + resultado.getFirmware());
-            appendSalida("Potencia: " + resultado.getPotencia());
-            appendSalida("SSID2: " + resultado.getSsid2() + ", Canal2: " + resultado.getCanal2() + ", Estado2: " + resultado.getEstado2());
-            appendSalida("SSID5: " + resultado.getSsid5() + ", Canal5: " + resultado.getCanal5() + ", Estado5: " + resultado.getEstado5());
-            appendSalida("Usuario: " + resultado.getUsuario());
-            appendSalida("VoIP: " + resultado.getVoip());
-            resultado.setCatalogo(this.getCatalogo());
-            appendSalida("Catalogo: " + resultado.getCatalogo());
-            appendSalida("Falla: " + resultado.getFalla());
-            appendSalida("Condicion: " + resultado.getCondicion());
-            resultado.setMultiprobador(MultiLocal);
-            appendSalida("Multiprobador: " + resultado.getMultiprobador());
+            appendSalida("Serial: " + datosValidados.getSerial());
+            // ... (resto de impresiones usando datosValidados) ...
+
+            // 📢 ¡ACCIÓN CLAVE 1: ENVIAR A LA PANTALLA!
+            mainHandler.post(() -> {
+                resultadoListener.onResultadoFinalizado(completo); // Llama a MainActivity
+            });
+
         } else {
             appendSalida("❌ Scrap falló [" + modelo + "] Puerto " + (puerto + 1) + "\n");
+
+            // Crear un objeto completo de error
+            ValidadorResultado.ResultadoValidacion errorVal = new ValidadorResultado.ResultadoValidacion(
+                    ValidadorResultado.EstadoValidacion.ERROR,
+                    "Scrap Fallido en " + modelo
+            );
+            ValidadorResultado.ResultadoCompleto errorCompleto = new ValidadorResultado.ResultadoCompleto(errorVal, resultado);
+
+            // 📢 ¡ACCIÓN CLAVE 2: ENVIAR FALLO!
+            mainHandler.post(() -> {
+                resultadoListener.onResultadoFinalizado(errorCompleto);
+            });
         }
 
-        resultados.add(resultado);
+        resultados.add(datosValidados);
         apagarYContinuar(puerto, onDone);
     }
-
 
     /**
      * Apaga todas las subinterfaces del IP asociado al puerto y cuando termina ejecuta onDone.
@@ -360,28 +432,109 @@ public class Prueba {
         return resultados;
     }
 
-    // --- Envío por correo (igual que tenías) ---
+    // Prueba.java
+
     public void prepararInternetYEnviar() throws InterruptedException {
         String ipInternet = "192.168.1.230";
         String subInterfaz = "eth3.0";
 
         appendSalida("🌐 Levantando interfaz " + ipInternet + " / " + subInterfaz + "...\n");
-        Thread.sleep(1000);
-        portMap.levantarSubinterfaz(ipInternet, subInterfaz, (success, salida) -> {
-            if (!success) {
-                appendSalida("❌ No se pudo levantar la interfaz " + subInterfaz + " en " + ipInternet + "\n");
-                return;
-            }
+        // Usamos un nuevo hilo para la lógica que puede ser bloqueante y la conexión
+        new Thread(() -> {
+            try {
+                portMap.levantarSubinterfaz(ipInternet, subInterfaz, (success, salida) -> mainHandler.post(() -> {
+                    if (!success) {
+                        appendSalida("❌ No se pudo levantar la interfaz " + subInterfaz + " en " + ipInternet + "\n");
+                        return;
+                    }
 
-            appendSalida("✅ Interfaz levantada. Verificando conexión a Internet...\n");
-            mainHandler.postDelayed(() -> {
-                if (tieneInternet()) {
-                    appendSalida("✅ Conexión a Internet OK. Abriendo Outlook...\n");
-                    enviarResultadosPorCorreo();
-                } else {
-                    appendSalida("❌ No hay conexión a Internet. Reintentar.\n");
-                }
-            }, 1000);
+                    appendSalida("✅ Interfaz levantada. Verificando conexión a Internet...\n");
+
+                    // Mueve la verificación de internet a un hilo secundario si aún no lo está
+                    new Thread(() -> {
+                        if (tieneInternet()) {
+                            mainHandler.post(() -> {
+                                appendSalida("✅ Conexión a Internet OK.\n");
+
+                                // 📢 PASO CLAVE: Verificar actualización AHORA
+                                checkForAppUpdatesAndContinue();
+
+                            });
+                        } else {
+                            mainHandler.post(() -> appendSalida("❌ No hay conexión a Internet. No se puede enviar.\n"));
+                        }
+                    }).start();
+                }));
+            } catch (Exception e) {
+                mainHandler.post(() -> appendSalida("Error en el flujo de conexión: " + e.getMessage()));
+            }
+        }).start();
+    }
+
+    /**
+     * 📢 NUEVO MÉTODO: Verifica y descarga la actualización si está disponible.
+     */
+    private void checkForAppUpdatesAndContinue() {
+
+        // Si el contexto pasado al constructor no es una Activity, esto fallará.
+        // Asumiremos que el 'context' es la MainActivity (Activity).
+        Activity activity = (Activity) context;
+
+        if (appUpdateManager == null) {
+            appUpdateManager = AppUpdateManagerFactory.create(activity);
+        }
+
+        appUpdateManager
+                .getAppUpdateInfo()
+                .addOnSuccessListener(appUpdateInfo -> {
+
+                    if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
+                            && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) { // Flujo Flexible
+
+                        appendSalida("✅ Actualización encontrada. Iniciando descarga en segundo plano.\n");
+
+                        try {
+                            appUpdateManager.startUpdateFlowForResult(
+                                    appUpdateInfo,
+                                    AppUpdateType.FLEXIBLE,
+                                    activity, // Necesita la Activity
+                                    MY_UPDATE_REQUEST_CODE);
+
+                            // Continúa con el envío de correo mientras se descarga
+                            enviarResultadosPorCorreo();
+
+                        } catch (IntentSender.SendIntentException e) {
+                            appendSalida("❌ Error iniciando flujo de actualización: " + e.getMessage() + "\n");
+                            enviarResultadosPorCorreo(); // Si falla la actualización, envía igual.
+                        }
+
+                    } else if (appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) {
+                        // Si ya estaba descargada de una ejecución anterior, notifica para instalar.
+                        appendSalida("✅ Actualización descargada. Sugiriendo instalación...\n");
+                        notifyUserAboutUpdate();
+                        enviarResultadosPorCorreo(); // Envía igual.
+
+                    } else {
+                        appendSalida("⚠️ No hay actualizaciones disponibles. Continuando con el envío.\n");
+                        enviarResultadosPorCorreo();
+                    }
+                });
+    }
+
+    /**
+     * 📢 NUEVO MÉTODO: Notifica a MainActivity para que muestre el diálogo de instalación.
+     */
+    private void notifyUserAboutUpdate() {
+        // Usamos el listener para comunicar a MainActivity (si implementaste un método para esto)
+        // o mostramos un Toast/log simple para que el usuario sepa que debe reiniciar.
+
+        // Lo más seguro es que MainActivity maneje esto en su onResume,
+        // pero si quieres un diálogo inmediato:
+
+        mainHandler.post(() -> {
+            // Esto requiere que MainActivity tenga una función pública para mostrar el diálogo.
+            // Por simplicidad, solo notificaremos vía log/salida
+            appendSalida("👉 Vuelve a abrir la aplicación para completar la actualización.");
         });
     }
 

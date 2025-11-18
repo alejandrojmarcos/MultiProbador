@@ -35,7 +35,7 @@ public class PortMap {
     public void apagarTodasLasIPs(PortMappingListener listener) {
         Log.d(TAG, CLASS + " → Iniciando apagado de *todas* las IPs...");
 
-        String[] routers = {"192.168.1.230", "192.168.1.240", "192.168.1.241", "192.168.1.242"};
+        String[] routers = {"192.168.1.240", "192.168.1.241", "192.168.1.242"};
         apagarRoutersSecuencial(routers, 0, listener);
     }
 
@@ -92,7 +92,7 @@ public class PortMap {
         ultimaIPLevanta = routerIP;
 
         // Paso 1: levantar subinterfaz en router
-        String[] comandosLevantar = {"ip link set " + subInterfaz + " up"};
+        String[] comandosLevantar = {"ip link set " + subInterfaz + " up; ip neigh flush all"};
         ejecutarSSHInteractivo(routerIP, comandosLevantar, listener);
     }
 
