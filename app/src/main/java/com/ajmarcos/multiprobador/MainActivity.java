@@ -12,6 +12,7 @@ import android.view.MenuItem;
 import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -34,6 +35,8 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
     private AppUpdateManager appUpdateManager;
     private static final int MY_REQUEST_CODE = 101;
 
+    private ProgressBar progressBar;
+
     // --- Variables de Interfaz y Lógica ---
     private Button btnComenzar;
     private Button btnEnviar;
@@ -55,6 +58,8 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_8);
+
+        progressBar = findViewById(R.id.progressBar);
 
         //firebase
 
@@ -203,7 +208,8 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
                         btnComenzar,
                         btnEnviar,
                         portMap,
-                        this // 👈 PASA 'this' como el PruebaResultadoListener
+                        this,
+                        progressBar// 👈 PASA 'this' como el PruebaResultadoListener
                 );
                 prueba.setCatalogo(tipoSeleccionado + "-" + catalogoSeleccionado);
 
@@ -242,37 +248,54 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
 
     // --- LÓGICA DE ACTUALIZACIÓN IN-APP (PLAY CORE) ---
 
+// MainActivity.java
+
+// MainActivity.java
+
     @Override
     protected void onResume() {
         super.onResume();
-        // Vuelve a verificar si la descarga flexible terminó mientras la app estaba en segundo plano.
+
         appUpdateManager
                 .getAppUpdateInfo()
                 .addOnSuccessListener(appUpdateInfo -> {
-                    // Si el estado es DESCARGADO, la actualización está lista para ser instalada.
-                    if (appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) {
-                        notifyUserAboutUpdate();
+
+                    // Verifica si la actualización inmediata (IMMEDIATE) se interrumpió y necesita reanudarse.
+                    // 📢 CORRECCIÓN: Usamos el valor entero 3 (que reemplaza a DEVELOPER_TRIGGERED_UPDATE_NEEDED)
+                    if (appUpdateInfo.updateAvailability() == 3) {
+                        try {
+                            appUpdateManager.startUpdateFlowForResult(
+                                    appUpdateInfo,
+                                    AppUpdateType.IMMEDIATE,
+                                    this,
+                                    MY_REQUEST_CODE);
+                        } catch (IntentSender.SendIntentException e) {
+                            Log.e(TAG, "Error reanudando flujo inmediato", e);
+                        }
                     }
                 });
+        // ... (El resto del código de onResume para el Flujo Flexible) ...
     }
+
+    // MainActivity.java
 
     private void checkForAppUpdates() {
         appUpdateManager
                 .getAppUpdateInfo()
                 .addOnSuccessListener(appUpdateInfo -> {
 
-                    // Verifica si hay una actualización disponible y si es del tipo FLEXIBLE
+                    // 📢 CAMBIO CLAVE: Usamos AppUpdateType.IMMEDIATE
                     if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
-                            && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
+                            && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
 
                         try {
                             appUpdateManager.startUpdateFlowForResult(
                                     appUpdateInfo,
-                                    AppUpdateType.FLEXIBLE, // Usamos Flujo Flexible
+                                    AppUpdateType.IMMEDIATE, // 👈 FUERZA LA INSTALACIÓN
                                     this,
                                     MY_REQUEST_CODE);
                         } catch (IntentSender.SendIntentException e) {
-                            Log.e(TAG, "Error iniciando flujo de actualización", e);
+                            Log.e(TAG, "Error iniciando flujo inmediato", e);
                         }
                     }
                 });

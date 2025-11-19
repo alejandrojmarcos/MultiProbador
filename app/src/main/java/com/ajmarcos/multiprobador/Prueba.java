@@ -26,6 +26,9 @@ import com.google.android.play.core.install.model.UpdateAvailability;
 import com.google.android.play.core.install.model.InstallStatus;
 import android.content.IntentSender;
 import android.app.Activity; // Necesario para iniciar el flujo
+import android.widget.ProgressBar;
+import android.graphics.Color;      // 👈 ¡NECESARIO! Para Color.GREEN y Color.RED
+import android.graphics.PorterDuff;
 
 public class Prueba {
 
@@ -47,6 +50,44 @@ public class Prueba {
     private int currentIndex = 0;
     private boolean probando;
 
+    private ProgressBar progressBar = null;
+
+    // Metodo para INICIAR el movimiento (llamado antes de SSH)
+    private void startIndeterminateProgress() {
+        mainHandler.post(() -> {
+            // Detener el modo fijo
+            progressBar.setIndeterminate(true); // 👈 INICIA EL MOVIMIENTO
+
+            // Resetear visualmente si es necesario (el color lo maneja el tema)
+            progressBar.setProgress(0);
+        });
+    }
+
+    // Metodo para DETENER el movimiento y mostrar el resultado final
+    private void stopIndeterminateProgress(boolean success) {
+        mainHandler.post(() -> {
+            // Detener el movimiento
+            progressBar.setIndeterminate(false);
+
+            // Mostrar 100% como resultado final de la extracción
+            progressBar.setMax(100);
+            progressBar.setProgress(100);
+
+            // 📢 NOTA: Para cambiar el color de la barra (ej. a verde o rojo),
+            // necesitarías usar un Drawable o ColorFilter en versiones antiguas de Android,
+            // o usar la librería Material Components para cambiar el color del track.
+            // Aquí usamos ColorFilter como ejemplo (requiere import android.graphics.PorterDuff;):
+            if (success) {
+                progressBar.getIndeterminateDrawable().setColorFilter(Color.GREEN, PorterDuff.Mode.SRC_IN);
+                progressBar.getProgressDrawable().setColorFilter(Color.GREEN, PorterDuff.Mode.SRC_IN);
+            } else {
+                progressBar.getIndeterminateDrawable().setColorFilter(Color.RED, PorterDuff.Mode.SRC_IN);
+                progressBar.getProgressDrawable().setColorFilter(Color.RED, PorterDuff.Mode.SRC_IN);
+            }
+        });
+    }
+
+
     private final PruebaResultadoListener resultadoListener; // 👈 📢 NUEVA DECLARACIÓN
 
 
@@ -56,7 +97,7 @@ public class Prueba {
     public String getCatalogo() { return this.catalogo; }
 
     public Prueba(WebView webView, boolean[] puertosSeleccionados, Context context, TextView tvSalida,
-                  Button btnComenzar, Button btnEnviar, PortMap portMap, PruebaResultadoListener resultadoListener) { // 👈 CAMBIO AQUÍ
+                  Button btnComenzar, Button btnEnviar, PortMap portMap, PruebaResultadoListener resultadoListener, ProgressBar progressBar) { // 👈 CAMBIO AQUÍ
         this.puertosSeleccionados = puertosSeleccionados;
         this.context = context;
         this.tvSalida = tvSalida;
@@ -67,6 +108,7 @@ public class Prueba {
         this.webView = webView;
         this.resultadoListener = resultadoListener; // 👈 GUARDA LA REFERENCIA
         this.probando=false;
+        this.progressBar = progressBar;
 
         btnComenzar.setOnClickListener(v -> {
 
@@ -101,6 +143,7 @@ public class Prueba {
 
     public void iniciar() {
         currentIndex = 0;
+        startIndeterminateProgress();
         ejecutarSiguientePuerto();
     }
 
@@ -148,23 +191,32 @@ public class Prueba {
 
     // En Prueba.java
 
+// Prueba.java
+
     private void ejecutarSiguientePuerto() {
-        // buscar siguiente puerto seleccionado
+        // 1. Buscar siguiente puerto seleccionado
         while (currentIndex < puertosSeleccionados.length && !puertosSeleccionados[currentIndex]) {
             currentIndex++;
         }
 
         if (currentIndex >= puertosSeleccionados.length) {
             appendSalida("\n✅ Secuencia finalizada.\n");
-            mainHandler.post(() -> btnEnviar.setEnabled(true));
+            // 📢 Al finalizar la secuencia completa, detén el movimiento y desactiva la barra si lo deseas.
+            mainHandler.post(() -> {
+                progressBar.setIndeterminate(false);
+                progressBar.setProgress(0); // Opcional: limpiar la barra
+                btnEnviar.setEnabled(true);
+            });
             btnComenzar.setEnabled(true);
             return;
         }
 
+        // 📢 INICIO DEL MOVIMIENTO DE BARRA: Puerto encontrado, la tarea comienza AHORA.
+        startIndeterminateProgress(); // Inicia el movimiento aleatorio
+
         final int puerto = currentIndex;
 
-        // 📢 AÑADIR RETRASO AQUÍ (Ej. 3 segundos)
-        // Esto permite que las conexiones SSH previas se cierren completamente en el router.
+        // AÑADIR RETRASO AQUÍ (3 segundos)
         appendSalida("⏳ Esperando estabilidad del sistema (3s)...");
 
         mainHandler.postDelayed(() -> {
@@ -176,6 +228,10 @@ public class Prueba {
             portMap.levantarSubinterfaz(si.getIp(), si.getNombre(), (success, salida) -> {
                 if (!success) {
                     appendSalida("❌ Error levantando interfaz " + si.getNombre() + " en " + si.getIp() + "\n");
+
+                    // 📢 FIJAR EL ESTADO FINAL: ERROR (Rojo)
+                    stopIndeterminateProgress(false); // false = error/rojo
+
                     currentIndex++;
                     ejecutarSiguientePuerto();
                     return;
@@ -183,9 +239,13 @@ public class Prueba {
 
                 // El retraso posterior a levantar la interfaz también es importante
                 mainHandler.postDelayed(() -> ejecutarDeviceModel(puerto, () -> {
+                    // 📢 FIJAR EL ESTADO FINAL: ÉXITO (Verde)
+                    // Esto se llama cuando TODAS las extracciones y validaciones terminaron.
+                    stopIndeterminateProgress(true); // true = éxito/verde
+
                     currentIndex++;
                     ejecutarSiguientePuerto();
-                }), 2000); // Aumentado a 2000ms (2s)
+                }), 2000); // Retraso de 2000ms (2s)
             });
 
         }, 3000); // Retraso inicial de 3000ms
