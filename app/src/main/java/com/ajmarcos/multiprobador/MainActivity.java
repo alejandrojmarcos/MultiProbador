@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.IntentSender;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -17,6 +18,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.RawRes;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.play.core.appupdate.AppUpdateManager;
@@ -25,11 +27,22 @@ import com.google.android.play.core.install.model.AppUpdateType;
 import com.google.android.play.core.install.model.UpdateAvailability;
 import com.google.android.play.core.install.model.InstallStatus;
 import com.google.firebase.messaging.FirebaseMessaging;
+
 import com.ajmarcos.multiprobador.ValidadorResultado.ResultadoCompleto;
 import com.ajmarcos.multiprobador.ValidadorResultado.EstadoValidacion;
+import com.ajmarcos.multiprobador.RedesDisponibles; // Importación necesaria para la clase de escaneo
+import android.net.wifi.ScanResult;
+import android.os.Handler;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-// Implementación de la interfaz de comunicación local (Callback)
-public class MainActivity extends AppCompatActivity implements PruebaResultadoListener {
+
+public class MainActivity extends AppCompatActivity implements PruebaResultadoListener, RedesDisponibles.RedesListener {
 
     // --- Variables de Actualización In-App ---
     private AppUpdateManager appUpdateManager;
@@ -46,7 +59,13 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
     private Button [] arrayBotonesPuerto;
     private TextView tvSalida;
 
-    // Declaración de todos los TextViews de respuesta
+    // Colecciones de validación
+    private Set<String> serialesInvalidos;
+    private Set<String> firmwaresActuales;
+    private Set<String> firmwaresCriticos;
+    private Set<String> firmwaresObsoletos;
+
+    // TextViews de respuesta
     private TextView tvActualResp, tvPingResp, tvPuertoResp, tvModeloResp, tvSerieResp, tvFirmwareResp,
             tvMacResp, tvPotenciaResp, tvSSID2Resp, tvRssi2Resp, tvEstado2Resp, tvSSID5Resp, tvRssi5Resp,
             tvEstado5Resp, tvVoipResp, tvCanal2Resp, tvCanal5Resp;
@@ -54,43 +73,77 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
     private final String TAG = "Deploy";
     private final String CLASS = getClass().getSimpleName();
 
+    // Lógica de Escaneo Recurrente
+    private static final long SCAN_INTERVAL_MS = 10000; // 10 segundos
+    private boolean isScanning = false; // Bandera de control
+    private RedesDisponibles redesDisponibles;
+    private final Handler scanHandler = new Handler(Looper.getMainLooper());
+    private Prueba prueba;
+
+
+    // 📢 Lógica de Escaneo Wi-Fi (SÓLO INICIA EL ESCANEO, NO SE REPROGRAMA AQUÍ)
+    private final Runnable scanRunner = new Runnable() {
+        @Override
+        public void run() {
+            if (redesDisponibles != null && !isScanning) {
+                isScanning = true;
+                redesDisponibles.escanearRedes();
+                // ❌ IMPORTANTE: Eliminamos el postDelayed(this, SCAN_INTERVAL_MS) de aquí
+            } else if (isScanning) {
+                // Si el escaneo ya está corriendo, programamos la próxima verificación
+                scanHandler.postDelayed(this, 1000); // Espera 1s y vuelve a intentar iniciar
+            }
+        }
+    };
+
+
+    // --- IMPLEMENTACIÓN DEL LISTENER DE REDES ---
+    @Override
+    public void onRedesResult(boolean success, String message, int code, List<ScanResult> redes) {
+        isScanning = false; // El ciclo de hardware ha terminado
+
+        if (success && redes != null && prueba != null) {
+            Log.d(TAG, "🟢 onRedesResult OK. Redes recibidas: " + redes.size());
+            prueba.agregarRedesObservadas(redes);
+        } else if (code != 3) {
+            // Solo logueamos si no es el error de concurrencia 'Code: 3'
+            Log.w(TAG, "Fallo al obtener redes: " + message + " (Code: " + code + ")");
+        }
+
+        // 📢 PROGRAMACIÓN CLAVE: El siguiente ciclo se programa DESPUÉS de que el actual finaliza
+        scanHandler.postDelayed(scanRunner, SCAN_INTERVAL_MS);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_8);
 
+        // --- Carga de Colecciones ---
+        serialesInvalidos = loadStringSetFromRaw(R.raw.seriales_invalidos);
+        firmwaresActuales = loadStringSetFromRaw(R.raw.firmwares_actuales);
+        firmwaresCriticos = loadStringSetFromRaw(R.raw.firmwares_criticos);
+        firmwaresObsoletos = loadStringSetFromRaw(R.raw.firmwares_obsoletos);
+
+        // 1. INICIALIZACIÓN DE VISTAS Y ACTUALIZACIÓN
         progressBar = findViewById(R.id.progressBar);
+        initializeTextViews();
 
-        //firebase
-
-        // En onCreate:
+        // Inicialización de FCM (Solo obtener el token)
         FirebaseMessaging.getInstance().getToken()
                 .addOnCompleteListener(task -> {
-                    if (!task.isSuccessful()) {
+                    if (task.isSuccessful()) {
+                        Log.d(TAG, "FCM Token: " + task.getResult());
+                    } else {
                         Log.w(TAG, "Fetching FCM registration token failed", task.getException());
-                        return;
                     }
-
-                    // Get new FCM registration token
-                    String token = task.getResult();
-
-                    // Log and toast
-                    Log.d(TAG, "FCM Token: " + token);
-                    // Toast.makeText(MainActivity.this, "Token: " + token, Toast.LENGTH_SHORT).show();
                 });
 
-
-
-        // 1. INICIALIZACIÓN DE IN-APP UPDATE MANAGER
+        // Inicialización de Play Core
         appUpdateManager = AppUpdateManagerFactory.create(this);
         checkForAppUpdates();
 
-        // 2. INICIALIZACIÓN DE VISTAS Y ARRAYS
-        initializeTextViews();
-
-        tvSalida = findViewById(R.id.tvSalida);
-
-        // Inicialización de arrays (CheckBoxes y Botones)
+        // Inicialización de arrays de botones y listeners
         arrayCheckBoxSeleccionPuerto = new CheckBox[]{
                 findViewById(R.id.cbPuerto01), findViewById(R.id.cbPuerto02), findViewById(R.id.cbPuerto03),
                 findViewById(R.id.cbPuerto04), findViewById(R.id.cbPuerto05), findViewById(R.id.cbPuerto06),
@@ -102,7 +155,6 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
                 findViewById(R.id.button7), findViewById(R.id.button8)
         };
 
-        // 3. CONFIGURACIÓN DE LISTENERS
         if (arrayBotonesPuerto.length == arrayCheckBoxSeleccionPuerto.length) {
             setupPortButtonListeners();
         } else {
@@ -113,14 +165,51 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
         btnEnviar = findViewById(R.id.buttonEnviar);
         btnCancelar = findViewById(R.id.buttonCancelar);
 
-        // Marcar todos los checkboxes por defecto
         for (CheckBox cb : arrayCheckBoxSeleccionPuerto) cb.setChecked(true);
         puertosSeleccionados = new boolean[8];
 
         btnComenzar.setOnClickListener(v -> mostrarDialogoLoteCatalogo());
+
+        // --- Inicialización de RedesDisponibles y Escaneo Recurrente ---
+       
+
+        // Iniciar el ciclo de escaneo automático (solo la primera vez)
+        scanHandler.post(scanRunner);
     }
 
-    // --- MÉTODOS AUXILIARES Y LÓGICA DE ACTUALIZACIÓN ---
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // Reanudar el chequeo forzado si fue interrumpido
+        appUpdateManager
+                .getAppUpdateInfo()
+                .addOnSuccessListener(appUpdateInfo -> {
+                    if (appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                        try {
+                            appUpdateManager.startUpdateFlowForResult(
+                                    appUpdateInfo,
+                                    AppUpdateType.IMMEDIATE,
+                                    this,
+                                    MY_REQUEST_CODE);
+                        } catch (IntentSender.SendIntentException e) {
+                            Log.e(TAG, "Error reanudando flujo inmediato", e);
+                        }
+                    }
+                });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        scanHandler.removeCallbacks(scanRunner);
+        if (redesDisponibles != null) {
+            redesDisponibles.unregisterReceiver();
+        }
+    }
+
+
+    // --- MÉTODOS AUXILIARES Y DE LÓGICA ---
 
     private void initializeTextViews() {
         tvActualResp = findViewById(R.id.tvActualResp);
@@ -140,6 +229,7 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
         tvVoipResp = findViewById(R.id.tvVoipResp);
         tvCanal2Resp = findViewById(R.id.tvCanal2Resp);
         tvCanal5Resp = findViewById(R.id.tvCanal5Resp);
+        tvSalida = findViewById(R.id.tvSalida);
     }
 
     private void setupPortButtonListeners() {
@@ -209,8 +299,14 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
                         btnEnviar,
                         portMap,
                         this,
-                        progressBar// 👈 PASA 'this' como el PruebaResultadoListener
+                        progressBar,
+                        // INYECCIÓN DE DEPENDENCIAS: Los 4 Sets se pasan aquí
+                        serialesInvalidos,
+                        firmwaresActuales,
+                        firmwaresCriticos,
+                        firmwaresObsoletos
                 );
+                this.prueba = prueba;
                 prueba.setCatalogo(tipoSeleccionado + "-" + catalogoSeleccionado);
 
                 Log.d(TAG, CLASS + ": Selección => " + prueba.getCatalogo());
@@ -246,52 +342,18 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
         builderTipo.show();
     }
 
-    // --- LÓGICA DE ACTUALIZACIÓN IN-APP (PLAY CORE) ---
-
-// MainActivity.java
-
-// MainActivity.java
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-
-        appUpdateManager
-                .getAppUpdateInfo()
-                .addOnSuccessListener(appUpdateInfo -> {
-
-                    // Verifica si la actualización inmediata (IMMEDIATE) se interrumpió y necesita reanudarse.
-                    // 📢 CORRECCIÓN: Usamos el valor entero 3 (que reemplaza a DEVELOPER_TRIGGERED_UPDATE_NEEDED)
-                    if (appUpdateInfo.updateAvailability() == 3) {
-                        try {
-                            appUpdateManager.startUpdateFlowForResult(
-                                    appUpdateInfo,
-                                    AppUpdateType.IMMEDIATE,
-                                    this,
-                                    MY_REQUEST_CODE);
-                        } catch (IntentSender.SendIntentException e) {
-                            Log.e(TAG, "Error reanudando flujo inmediato", e);
-                        }
-                    }
-                });
-        // ... (El resto del código de onResume para el Flujo Flexible) ...
-    }
-
-    // MainActivity.java
-
     private void checkForAppUpdates() {
         appUpdateManager
                 .getAppUpdateInfo()
                 .addOnSuccessListener(appUpdateInfo -> {
 
-                    // 📢 CAMBIO CLAVE: Usamos AppUpdateType.IMMEDIATE
                     if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
                             && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
 
                         try {
                             appUpdateManager.startUpdateFlowForResult(
                                     appUpdateInfo,
-                                    AppUpdateType.IMMEDIATE, // 👈 FUERZA LA INSTALACIÓN
+                                    AppUpdateType.IMMEDIATE,
                                     this,
                                     MY_REQUEST_CODE);
                         } catch (IntentSender.SendIntentException e) {
@@ -355,7 +417,6 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
             tvCanal5Resp.setText(datos.getCanal5());
             tvRssi2Resp.setText(datos.getRssi2());
             tvRssi5Resp.setText(datos.getRssi5());
-            // tvPingResp y tvPuertoResp se dejan para otra lógica si no se actualizan aquí
         }
     }
 
@@ -384,5 +445,23 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private Set<String> loadStringSetFromRaw(@RawRes int resourceId) {
+        Set<String> set = new HashSet<>();
+        try (InputStream is = getResources().openRawResource(resourceId);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    set.add(line.trim().toUpperCase());
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error cargando archivo raw (ID: " + resourceId + ")", e);
+            return Collections.emptySet();
+        }
+        return set;
     }
 }

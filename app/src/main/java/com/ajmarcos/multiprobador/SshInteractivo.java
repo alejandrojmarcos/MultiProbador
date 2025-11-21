@@ -1,10 +1,10 @@
 package com.ajmarcos.multiprobador;
 
-import android.util.Log;
 import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
 
+import android.util.Log;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -75,17 +75,19 @@ public class SshInteractivo extends Thread {
             channel.connect(3000);
             Log.d(TAG, CLASS + " → Canal shell abierto");
 
-            sleepMillis(300);
-            drainInputToAccumulator(in, acc, 600);
+            // ⚡ OPTIMIZACIÓN: Reducción de espera inicial (300ms + 600ms -> 100ms + 400ms)
+            sleepMillis(100);
+            drainInputToAccumulator(in, acc, 400);
 
             // ---- Entra a sh ----
             writeCmd(out, "sh");
             waitForPrompt(acc, in, new String[]{"sh>", "#", ">"}, 3000);
 
             // ---- Limpia known_hosts dentro del router (necesario para el ssh anidado) ----
+            // ⚡ OPTIMIZACIÓN: Reducción de espera (800ms -> 500ms, 400ms -> 100ms)
             writeCmd(out, "rm -f /root/.ssh/known_hosts");
             drainInputToAccumulator(in, acc, 500);
-            sleepMillis(300);
+            sleepMillis(100);
 
             // ---- Espera el prompt del router después de la limpieza ----
             waitForPrompt(acc, in, new String[]{"sh>", "#", ">"}, 2000);
@@ -107,7 +109,8 @@ public class SshInteractivo extends Thread {
                     }
                     Log.d(TAG, CLASS + " → Login interno exitoso. Esperando prompt del 1.1...");
                     // Esperamos el prompt del 1.1 para continuar con el siguiente comando (show device_model)
-                    waitForPrompt(acc, in, new String[]{">", "#", "$"}, 5000);
+                    // ⚡ OPTIMIZACIÓN: Reducir espera del prompt de la ONT, ya que se asume éxito en handleLoginSequence
+                    waitForPrompt(acc, in, new String[]{">", "#", "$", "WAP>"}, 1500);
                 }
 
                 // Drenamos el resto del output del comando (para comandos que no son SSH anidado)
@@ -136,53 +139,58 @@ public class SshInteractivo extends Thread {
     }
 
     // ---------------------------------------------------------
-    //          MÉTODO: LOGIN ROBUSTO MULTI-INTENTO (REUTILIZADO)
+    //          MÉTODO: LOGIN ROBUSTO MULTI-INTENTO (CORREGIDO)
     // ---------------------------------------------------------
-    // Este método es crucial para manejar el login de la sesión SSH anidada.
     private boolean handleLoginSequence(ByteArrayOutputStream acc, InputStream in, OutputStream out) throws Exception {
 
-        // El bucle de login original que busca 'login:' o 'password:' y responde.
+        final String ONT_PASS = "Te2010An_2014Ma"; // Contraseña de la ONT
+        final String PASSWORD_PROMPT = "password:";
+        final String LOGIN_PROMPT = "login:";
+
+        // Intentamos hasta 2 veces (por seguridad)
         for (int i = 0; i < 2; i++) {
 
             // 1. Drenar y verificar si hay prompt de login
-            drainInputToAccumulator(in, acc, 1000);
+            // ⚡ OPTIMIZACIÓN: Reducción de espera.
+            drainInputToAccumulator(in, acc, 800);
             String s = acc.toString(StandardCharsets.UTF_8.name()).toLowerCase();
 
-            boolean sawLogin = s.contains("login:");
-            boolean sawPass = s.contains("password:");
+            boolean sawLogin = s.contains(LOGIN_PROMPT);
+            boolean sawPass = s.contains(PASSWORD_PROMPT);
 
             if (sawLogin || sawPass) {
-                // Si vemos login, enviamos usuario y esperamos password
+                // Si vemos login (Caso 8145), enviamos usuario y esperamos password
                 if (sawLogin) {
-                    Log.d(TAG, CLASS + " → Login Prompt detectado. Enviando usuario...");
                     writeCmd(out, user);
-                    waitForText(acc, in, "password", 5000);
+                    waitForText(acc, in, PASSWORD_PROMPT, 2000);
+                    s = acc.toString(StandardCharsets.UTF_8.name()).toLowerCase();
                 }
 
-                // Si vemos password (o después de enviar el usuario), enviamos password
-                Log.d(TAG, CLASS + " → Password Prompt detectado. Enviando contraseña...");
-                writeCmd(out, pass);
+                // Si vemos password (Caso 8225 o después de enviar usuario), enviamos password
+                writeCmd(out, ONT_PASS);
 
-                // Drenar y revisar si devolvió error (e.g., 'wrong password')
-                drainInputToAccumulator(in, acc, 1500);
+                // ⚡ OPTIMIZACIÓN: Espera mínima de procesamiento + chequeo de éxito.
+                // Usamos un tiempo fijo seguro (2500ms) para que la ONT procese la contraseña.
+                sleepMillis(2500);
+
+                // 4. Chequear fallos si no hay error explícito
+                drainInputToAccumulator(in, acc, 500);
                 String result = acc.toString(StandardCharsets.UTF_8.name()).toLowerCase();
 
-                if (result.contains("wrong") || result.contains("failed")) {
+                if (result.contains("wrong") || result.contains("failed") || result.contains("permission denied") || result.contains("disconnected")) {
                     Log.w(TAG, CLASS + " → Login incorrecto detectado en intento " + (i + 1));
-                    acc.reset(); // Limpiamos para el siguiente intento o fallo final.
-                    continue; // Intentamos de nuevo si hay un segundo prompt, si no, caemos en el false.
+                    acc.reset();
+                    continue;
                 }
 
-                // Si no hay error, asume éxito (debería ver el prompt > o #)
+                // Asume éxito si no hay mensaje de error y el shell está abierto
                 return true;
 
             } else if (i == 0) {
-                // Si no vemos ni 'login' ni 'password' en el primer chequeo,
-                // puede ser que ya se haya logueado por caché o el prompt está listo.
-                // Drenamos un poco más y continuamos el bucle principal.
+                // Si no vemos ni 'login' ni 'password', chequeamos si ya estamos logueados
                 drainInputToAccumulator(in, acc, 500);
                 if (acc.toString(StandardCharsets.UTF_8.name()).toLowerCase().contains(">") || acc.toString(StandardCharsets.UTF_8.name()).toLowerCase().contains("#")) {
-                    return true;
+                    return true; // Ya logueado
                 }
             }
         }
@@ -192,15 +200,15 @@ public class SshInteractivo extends Thread {
     }
 
     // ---------------------------------------------------------
-    // utilidades (sin cambios, excepto que se elimina el método handleLoginSequence original,
-    // que se reemplaza por la nueva lógica de login dentro de run())
+    //                              UTILIDADES
     // ---------------------------------------------------------
 
     private void writeCmd(OutputStream out, String cmd) throws Exception {
         out.write((cmd + "\n").getBytes(StandardCharsets.UTF_8));
         out.flush();
         Log.d(TAG, CLASS + " → Enviando: " + cmd);
-        sleepMillis(150);
+        // ⚡ OPTIMIZACIÓN: Reducción del sleep después de escribir el comando
+        sleepMillis(50);
     }
 
     private void drainInputToAccumulator(InputStream in, ByteArrayOutputStream acc, long timeout) throws Exception {
@@ -213,7 +221,8 @@ public class SshInteractivo extends Thread {
                 if (read > 0) acc.write(buf, 0, read);
                 start = System.currentTimeMillis();
             } else {
-                sleepMillis(120);
+                // ⚡ OPTIMIZACIÓN: Reducción del sleep dentro del loop de drenado
+                sleepMillis(50);
             }
         }
     }
@@ -228,7 +237,8 @@ public class SshInteractivo extends Thread {
                     return true;
                 }
             }
-            sleepMillis(120);
+            // ⚡ OPTIMIZACIÓN: Reducción del sleep
+            sleepMillis(50);
         }
         return false;
     }
@@ -240,7 +250,8 @@ public class SshInteractivo extends Thread {
             drainInputToAccumulator(in, acc, 200);
             if (acc.toString(StandardCharsets.UTF_8.name()).toLowerCase().contains(lower))
                 return true;
-            sleepMillis(120);
+            // ⚡ OPTIMIZACIÓN: Reducción del sleep
+            sleepMillis(50);
         }
         return false;
     }

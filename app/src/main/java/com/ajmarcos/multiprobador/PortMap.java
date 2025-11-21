@@ -64,14 +64,24 @@ public class PortMap {
     // ---------------------------------------------------------
     // Apagar subinterfaces completas
     // ---------------------------------------------------------
+    // PortMap.java
+
+    // ---------------------------------------------------------
+// Apagar subinterfaces completas
+// ---------------------------------------------------------
     public void apagarInterfacesPorIp(String ip, PortMappingListener listener) {
         Log.d(TAG, CLASS + " → Preparando comandos de apagado para " + ip);
-        String[] comandos = {
-                "ip link set eth1.0 down",
-                "ip link set eth2.0 down",
-                "ip link set eth3.0 down"
-        };
-        ejecutarSSHInteractivo(ip, comandos, listener);
+
+        // 📢 COMANDO ÚNICO Y ENCADENADO
+        String comandosJuntos =
+                "ip link set eth1.0 down;" +
+                        "ip link set eth2.0 down;" +
+                        "ip link set eth3.0 down";
+
+        // Ejecutamos como una sola instrucción
+        ejecutarSSHInteractivo(ip, new String[]{comandosJuntos}, listener);
+
+        // Nota: El SshInteractivo debe tener un mecanismo para esperar el prompt SOLO después del último punto y coma.
     }
 
     // ---------------------------------------------------------
@@ -92,7 +102,7 @@ public class PortMap {
         ultimaIPLevanta = routerIP;
 
         // Paso 1: levantar subinterfaz en router
-        String[] comandosLevantar = {"ip link set " + subInterfaz + " up; ip neigh flush all"};
+        String[] comandosLevantar = {"ip neigh flush all; ip link set " + subInterfaz + " up"};
         ejecutarSSHInteractivo(routerIP, comandosLevantar, listener);
     }
 
