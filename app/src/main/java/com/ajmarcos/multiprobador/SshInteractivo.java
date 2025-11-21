@@ -214,15 +214,20 @@ public class SshInteractivo extends Thread {
     private void drainInputToAccumulator(InputStream in, ByteArrayOutputStream acc, long timeout) throws Exception {
         long start = System.currentTimeMillis();
         byte[] buf = new byte[4096];
+
+        // El bucle while (System.currentTimeMillis() - start < timeout) se mantiene
         while (System.currentTimeMillis() - start < timeout && !detener) {
             int available = in.available();
+
             if (available > 0) {
+                // Si hay datos, leemos y reiniciamos el cronómetro de espera (start)
                 int read = in.read(buf, 0, Math.min(available, buf.length));
                 if (read > 0) acc.write(buf, 0, read);
                 start = System.currentTimeMillis();
             } else {
-                // ⚡ OPTIMIZACIÓN: Reducción del sleep dentro del loop de drenado
-                sleepMillis(50);
+                // ⚡ OPTIMIZACIÓN CRÍTICA: Reducimos la pausa a 20ms.
+                // El hilo principal vuelve a chequear el buffer más rápidamente.
+                sleepMillis(20);
             }
         }
     }
@@ -238,7 +243,7 @@ public class SshInteractivo extends Thread {
                 }
             }
             // ⚡ OPTIMIZACIÓN: Reducción del sleep
-            sleepMillis(50);
+            sleepMillis(20);
         }
         return false;
     }
@@ -251,7 +256,7 @@ public class SshInteractivo extends Thread {
             if (acc.toString(StandardCharsets.UTF_8.name()).toLowerCase().contains(lower))
                 return true;
             // ⚡ OPTIMIZACIÓN: Reducción del sleep
-            sleepMillis(50);
+            sleepMillis(20);
         }
         return false;
     }

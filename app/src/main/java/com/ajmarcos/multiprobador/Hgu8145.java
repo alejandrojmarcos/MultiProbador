@@ -185,9 +185,11 @@ public class Hgu8145 {
 
         // Wi-Fi (Usando bloques de texto plano)
         // Nota: Como el XML viene AL FINAL, no interfiere con la búsqueda de estos bloques iniciales.
+        // Bloque 2.4 GHz (Index 1)
         String block2_4 = extractBlock(fullOutput, "SSID Index\\s+:\\s*1", "----------------------------------------------------");
         if (!block2_4.isEmpty()) {
-            r.setSsid2(extractByBlockKey(block2_4, "SSID"));
+            // 📢 CORRECCIÓN: Usamos extractByBlockKey para obtener la línea "SSID : FIBRA-WIFI6-8542"
+            r.setSsid2(extractByBlockKey(block2_4, "SSID                          :")); // <--- ESTO DEBE DEVOLVER EL NOMBRE REAL
             r.setCanal2(extractByBlockKey(block2_4, "Channel").replace("(auto)", "").trim());
             r.setEstado2(extractByBlockKey(block2_4, "Status"));
             r.setRssi2("N/A");
@@ -195,9 +197,10 @@ public class Hgu8145 {
             r.setSsid2("N/A");
         }
 
+// Bloque 5 GHz (Asumimos el SSID Index 5)
         String block5 = extractBlock(fullOutput, "SSID Index\\s+:\\s*5", "----------------------------------------------------");
         if (!block5.isEmpty()) {
-            r.setSsid5(extractByBlockKey(block5, "SSID"));
+            r.setSsid5(extractByBlockKey(block5, "SSID                          :")); // <--- ESTO DEBE DEVOLVER EL NOMBRE REAL
             r.setCanal5(extractByBlockKey(block5, "Channel").replace("(auto)", "").trim());
             r.setEstado5(extractByBlockKey(block5, "Status"));
             r.setRssi5("N/A");

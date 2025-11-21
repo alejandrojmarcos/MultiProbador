@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.Handler;
@@ -66,14 +68,32 @@ public class SplashActivity extends AppCompatActivity {
     }
 
 
+    // SplashActivity.java
+
+// SplashActivity.java (Modificar el método isNetworkAvailable)
+
     private boolean isNetworkAvailable(Context context) {
+        // 1. Verificar si hay conectividad local (API 28 y anteriores)
         ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (cm != null) {
-            NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-            // Verifica que haya una red activa y que esté conectada (API 28 y anteriores)
-            return activeNetwork != null && activeNetwork.isConnected();
+        NetworkInfo activeNetwork = (cm != null) ? cm.getActiveNetworkInfo() : null;
+
+        if (activeNetwork == null || !activeNetwork.isConnected()) {
+            return false; // No hay conexión local
         }
-        return false;
+
+        // 2. 📢 VERIFICACIÓN DE SALIDA EXTERNA (Ping)
+        // El ping solo debe ejecutarse en el hilo de fondo (ya estás en un hilo secundario)
+        try {
+            // Ejecuta un ping a un servidor conocido (Google DNS) con un timeout estricto (e.g., 2 segundos)
+            Process process = Runtime.getRuntime().exec("/system/bin/ping -c 1 -W 2 8.8.8.8");
+            int exitCode = process.waitFor();
+
+            // Retorna true si el ping fue exitoso (código de salida 0)
+            return exitCode == 0;
+        } catch (Exception e) {
+            Log.e(TAG, "Ping falló: " + e.getMessage());
+            return false;
+        }
     }
 
     private void showNoInternetDialog() {

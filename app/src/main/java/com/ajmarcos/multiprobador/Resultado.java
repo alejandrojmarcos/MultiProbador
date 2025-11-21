@@ -74,7 +74,7 @@ public class Resultado {
     public String getFalla() { return falla; }
     public void setFalla(String falla) { this.falla = falla; }
 
-    public String getCondicion() { return condicion; }
+    public String getResultado() { return condicion; }
     public void setCondicion(String condicion) { this.condicion = condicion; }
 
     public String getMultiprobador() { return multiprobador; }

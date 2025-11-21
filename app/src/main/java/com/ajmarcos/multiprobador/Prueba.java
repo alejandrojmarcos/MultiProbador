@@ -123,12 +123,11 @@ public class Prueba {
         });
 
         btnEnviar.setOnClickListener(v -> {
-            try {
-                prepararInternetYEnviar();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                appendSalida("❌ Proceso interrumpido al intentar enviar.");
-            }
+
+            Log.d(TAG,"button enviar presionado");
+
+            enviar();
+            enviarResultadosPorCorreo();
         });
 
         mainHandler.post(() -> {
@@ -493,53 +492,9 @@ public class Prueba {
         return resultados;
     }
 
-    // --- MÉTODOS DE CONEXIÓN A INTERNET Y ENVÍO DE CORREO ---
 
-    public void prepararInternetYEnviar() throws InterruptedException {
-        String ipInternet = "192.168.1.230";
-        String subInterfaz = "eth3.0";
 
-        appendSalida("🌐 Levantando interfaz " + ipInternet + " / " + subInterfaz + "...\n");
-
-        new Thread(() -> {
-            try {
-                portMap.levantarSubinterfaz(ipInternet, subInterfaz, (success, salida) -> mainHandler.post(() -> {
-                    if (!success) {
-                        appendSalida("❌ No se pudo levantar la interfaz " + subInterfaz + " en " + ipInternet + "\n");
-                        return;
-                    }
-
-                    appendSalida("✅ Interfaz levantada. Verificando conexión a Internet...\n");
-
-                    new Thread(() -> {
-                        if (tieneInternet()) {
-                            mainHandler.post(() -> {
-                                appendSalida("✅ Conexión a Internet OK.\n");
-                                checkForAppUpdatesAndContinue();
-                            });
-                        } else {
-                            mainHandler.post(() -> appendSalida("❌ No hay conexión a Internet. No se puede enviar.\n"));
-                        }
-                    }).start();
-                }));
-            } catch (Exception e) {
-                mainHandler.post(() -> appendSalida("Error en el flujo de conexión: " + e.getMessage()));
-            }
-        }).start();
-    }
-
-    private boolean tieneInternet() {
-        try {
-            Process p = Runtime.getRuntime().exec("ping -c 10 8.8.8.8");
-            int returnVal = p.waitFor();
-            return (returnVal == 0);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    private void checkForAppUpdatesAndContinue() {
+    private void enviar() {
         // Asumimos que 'context' es una Activity, sino se debe asegurar
         Activity activity = (Activity) context;
 
@@ -595,22 +550,28 @@ public class Prueba {
 
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile))) {
                 String[] headers = {
-                        "fecha","multiprobador","modelo", "serial", "firmware", "potencia",
-                        "ssid2", "estado2", "canal2","rssi2",
-                        "ssid5", "estado5", "canal5","rssi5",
-                        "usuario", "voip",
-                        "catalogo", "falla", "condicion"
+                        "fecha","multiprobador","modelo","mac", "serial", "firmware","potencia_ref"
+                        ,"potencia",
+                        "ssid2", "estado2", "canal2", "rssi_ref_2","rssi2",
+                        "ssid5", "estado5", "canal5","rssi_ref_5","rssi5",
+                        "usuario", "voip","loteDescripcion",
+                        "catalogo", "falla", "resultado"
                 };
                 writer.write(String.join(",", headers));
                 writer.newLine();
-
+/*
+* fecha	multiprobador	modelo	mac	serial	firmware	potencia_ref	potencia	ssid2
+estado2
+	canal2	rssi_ref_2	rssi2	ssid5	estado5	canal5	rssi_ref_5	rssi5
+	* usuario	voip	loteDescripcion	catalogo	falla	resultado
+* */
                 for (Resultado r : resultados) {
                     String[] values = {
-                            r.getFecha(), r.getMultiprobador(), r.getModelo(), r.getSerial(), r.getFirmware(), r.getPotencia(),
-                            r.getSsid2(), r.getEstado2(), r.getCanal2(), r.getRssi2(),
-                            r.getSsid5(), r.getEstado5(), r.getCanal5(), r.getRssi5(),
-                            r.getUsuario(), r.getVoip(),
-                            r.getCatalogo(), r.getFalla(), r.getCondicion()
+                            r.getFecha(), r.getMultiprobador(), r.getModelo(),"mac", r.getSerial(), r.getFirmware(),"potencia_ref", r.getPotencia(),
+                            r.getSsid2(), r.getEstado2(), r.getCanal2(),"rssi_ref_2", r.getRssi2(),
+                            r.getSsid5(), r.getEstado5(), r.getCanal5(),"rssi_ref_5", r.getRssi5(),
+                            r.getUsuario(), r.getVoip(),"loteDescripcion",
+                            r.getCatalogo(), r.getFalla(), r.getResultado()
                     };
 
                     for (int i = 0; i < values.length; i++) {
