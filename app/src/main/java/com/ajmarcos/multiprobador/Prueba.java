@@ -36,7 +36,7 @@ import android.app.Activity;
 
 // Nota: Se asume que las clases Hgu8145, Hgu2541, ValidadorResultado, SubInterface, y SshInteractivo existen.
 
-public class Prueba {
+public class Prueba implements RedesDisponibles.RedesListener {
 
     private AppUpdateManager appUpdateManager;
     private static final int MY_UPDATE_REQUEST_CODE = 101;
@@ -57,7 +57,6 @@ public class Prueba {
     private final Set<String> firmwaresActuales;
     private final Set<String> firmwaresCriticos;
     private final Set<String> firmwaresObsoletos;
-    private final Set<String> redesObservadas = new HashSet<>(); // Lista acumulada de redes visibles
 
     private WebView webView;
     private String catalogo = "";
@@ -150,9 +149,6 @@ public class Prueba {
     }
     public String getCatalogo() { return this.catalogo; }
 
-    public Set<String> getRedesObservadas() {
-        return redesObservadas;
-    }
 
     // --- MÉTODOS DE PROGRESO INDETERMINADO ---
 
@@ -185,32 +181,19 @@ public class Prueba {
         currentIndex = 0;
         startIndeterminateProgress();
         ejecutarSiguientePuerto();
+
+
+
     }
 
-    public void agregarRedesObservadas(List<ScanResult> resultadosEscaneo) {
-        if (resultadosEscaneo != null) {
-
-            StringBuilder logBuilder = new StringBuilder();
-            logBuilder.append("--- Redes Observadas Acumuladas ---\n");
-
-            for (ScanResult result : resultadosEscaneo) {
-                if (result.SSID != null && !result.SSID.isEmpty()) {
-                    String ssidLimpio = result.SSID.trim().toUpperCase();
-                    redesObservadas.add(ssidLimpio);
-                }
-            }
-
-            logBuilder.append("Total actual: ").append(redesObservadas.size()).append(" SSIDs.\n");
-            // ... (log de listado de SSIDs, omitido por brevedad) ...
-            Log.d(TAG, logBuilder.toString());
-        }
-    }
 
 
     private void ejecutarSiguientePuerto() {
         // 1. Buscar siguiente puerto seleccionado
         while (currentIndex < puertosSeleccionados.length && !puertosSeleccionados[currentIndex]) {
             currentIndex++;
+
+
         }
 
         if (currentIndex >= puertosSeleccionados.length) {
@@ -224,6 +207,10 @@ public class Prueba {
         }
 
         startIndeterminateProgress();
+
+        RedesDisponibles redesDisponibles = new RedesDisponibles(context);
+        redesDisponibles.setRedesListener(this);
+        redesDisponibles.escanearRedes();
 
         final int puerto = currentIndex;
 
@@ -330,8 +317,6 @@ public class Prueba {
             hgu.setMulti(MultiLocal);
             hgu.setCatal(catalogo);
 
-            // ❌ Línea hgu.setValidationSets(...) ELIMINADA.
-
             hgu.setHgu8145Listener((success, res, code) -> procesarResultadoScrap(puerto, modelo, success, res, code, onDone));
             hgu.scrap8145Ssh(routerIp);
         } else if (modelo.contains("2541")) {
@@ -406,8 +391,8 @@ public class Prueba {
                 serialesInvalidos, // 2. Lista de seriales bloqueados (Accedidas directamente como variables de clase)
                 firmwaresActuales, // 3. Firmware OK
                 firmwaresCriticos, // 4. Firmware Crítico (Error)
-                firmwaresObsoletos, // 5. Firmware Obsoleto (Warning)
-                getRedesObservadas() // 6. Redes Observadas
+                firmwaresObsoletos// 5. Firmware Obsoleto (Warning)
+                 // 6. Redes Observadas
         );
         // Obtener los datos validados/modificados y la validación para el log
         Resultado datosValidados = completo.getDatosModificados();
@@ -628,5 +613,11 @@ estado2
         }
     }
 
+
+    @Override
+    public void onRedesResult(boolean success, String message, int code, ArrayList<RedWiFi> redes) {
+        Log.d(TAG,CLASS + " " + redes );
+
+    }
 
 }

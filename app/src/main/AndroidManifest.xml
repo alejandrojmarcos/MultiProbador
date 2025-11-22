@@ -24,7 +24,7 @@
         android:theme="@style/Theme.Multiprobador"
         tools:targetApi="31">
         <activity
-            android:name=".SplashActivity"
+            android:name=".ActivityInicio"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

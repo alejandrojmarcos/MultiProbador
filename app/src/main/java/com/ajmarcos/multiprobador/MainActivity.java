@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Set;
 
 
-public class MainActivity extends AppCompatActivity implements PruebaResultadoListener, RedesDisponibles.RedesListener {
+public class MainActivity extends AppCompatActivity implements PruebaResultadoListener {
 
     // --- Variables de Actualización In-App ---
     private AppUpdateManager appUpdateManager;
@@ -78,39 +78,6 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
     private final Handler scanHandler = new Handler(Looper.getMainLooper());
     private Prueba prueba;
 
-
-    // 📢 Lógica de Escaneo Wi-Fi (SÓLO INICIA EL ESCANEO, NO SE REPROGRAMA AQUÍ)
-    private final Runnable scanRunner = new Runnable() {
-        @Override
-        public void run() {
-            if (redesDisponibles != null && !isScanning) {
-                isScanning = true;
-                redesDisponibles.escanearRedes();
-                // ❌ IMPORTANTE: Eliminamos el postDelayed(this, SCAN_INTERVAL_MS) de aquí
-            } else if (isScanning) {
-                // Si el escaneo ya está corriendo, programamos la próxima verificación
-                scanHandler.postDelayed(this, 1000); // Espera 1s y vuelve a intentar iniciar
-            }
-        }
-    };
-
-
-    // --- IMPLEMENTACIÓN DEL LISTENER DE REDES ---
-    @Override
-    public void onRedesResult(boolean success, String message, int code, List<ScanResult> redes) {
-        isScanning = false; // El ciclo de hardware ha terminado
-
-        if (success && redes != null && prueba != null) {
-            Log.d(TAG, "🟢 onRedesResult OK. Redes recibidas: " + redes.size());
-            prueba.agregarRedesObservadas(redes);
-        } else if (code != 3) {
-            // Solo logueamos si no es el error de concurrencia 'Code: 3'
-            Log.w(TAG, "Fallo al obtener redes: " + message + " (Code: " + code + ")");
-        }
-
-        // 📢 PROGRAMACIÓN CLAVE: El siguiente ciclo se programa DESPUÉS de que el actual finaliza
-        scanHandler.postDelayed(scanRunner, SCAN_INTERVAL_MS);
-    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -168,11 +135,6 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
 
         btnComenzar.setOnClickListener(v -> mostrarDialogoLoteCatalogo());
 
-        // --- Inicialización de RedesDisponibles y Escaneo Recurrente ---
-       
-
-        // Iniciar el ciclo de escaneo automático (solo la primera vez)
-        scanHandler.post(scanRunner);
     }
 
     @Override
@@ -200,10 +162,7 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        scanHandler.removeCallbacks(scanRunner);
-        if (redesDisponibles != null) {
-            redesDisponibles.unregisterReceiver();
-        }
+
     }
 
 
@@ -359,18 +318,6 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
                         }
                     }
                 });
-    }
-
-    private void notifyUserAboutUpdate() {
-        new AlertDialog.Builder(this)
-                .setTitle("Actualización lista")
-                .setMessage("Se ha descargado una nueva versión. ¿Desea instalarla ahora?")
-                .setPositiveButton("Instalar y Reiniciar", (dialog, which) -> {
-                    appUpdateManager.completeUpdate();
-                })
-                .setNegativeButton("Más tarde", (dialog, which) -> {
-                })
-                .show();
     }
 
     @Override

@@ -50,8 +50,7 @@ public class ValidadorResultado {
                                             Set<String> serialesInvalidos,
                                             Set<String> firmwaresActuales,
                                             Set<String> firmwaresCriticos,
-                                            Set<String> firmwaresObsoletos,
-                                            Set<String> redesObservadas){ // 👈 PARÁMETRO DE REDES
+                                            Set<String> firmwaresObsoletos){ // 👈 PARÁMETRO DE REDES
         ResultadoValidacion rv = null; // Inicializamos a null para registrar el primer error/warning
 
         if (r == null) {
@@ -99,12 +98,12 @@ public class ValidadorResultado {
         if (rv == null || rv.getEstado() != EstadoValidacion.ERROR) {
 
             // Chequeo 2.4 GHz
-            if (!ssid2Limpio.isEmpty() && !ssid2Limpio.equals("N/A") && !redesObservadas.contains(ssid2Limpio)) {
+            if (!ssid2Limpio.isEmpty() && !ssid2Limpio.equals("N/A") ) {
                 rv = new ResultadoValidacion(EstadoValidacion.WARNING, "SSID 2.4G configurado pero NO VISIBLE en el escaneo.");
             }
 
             // Chequeo 5 GHz (Solo si el 2.4G no generó un WARNING que queremos mantener, o si no hubo error)
-            else if (!ssid5Limpio.isEmpty() && !ssid5Limpio.equals("N/A") && !redesObservadas.contains(ssid5Limpio)) {
+            else if (!ssid5Limpio.isEmpty() && !ssid5Limpio.equals("N/A") ) {
                 // No sobrescribimos un ERROR existente, pero sí un WARNING de firmware o VOIP anterior.
                 rv = new ResultadoValidacion(EstadoValidacion.WARNING, "SSID 5G configurado pero NO VISIBLE en el escaneo.");
             }
