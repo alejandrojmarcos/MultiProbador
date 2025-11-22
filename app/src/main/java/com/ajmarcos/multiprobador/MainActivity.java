@@ -25,12 +25,10 @@ import com.google.android.play.core.appupdate.AppUpdateManager;
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory;
 import com.google.android.play.core.install.model.AppUpdateType;
 import com.google.android.play.core.install.model.UpdateAvailability;
-import com.google.android.play.core.install.model.InstallStatus;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 import com.ajmarcos.multiprobador.ValidadorResultado.ResultadoCompleto;
-import com.ajmarcos.multiprobador.ValidadorResultado.EstadoValidacion;
-import com.ajmarcos.multiprobador.RedesDisponibles; // Importación necesaria para la clase de escaneo
+
 import android.net.wifi.ScanResult;
 import android.os.Handler;
 import java.io.BufferedReader;
@@ -120,10 +118,10 @@ public class MainActivity extends AppCompatActivity implements PruebaResultadoLi
         setContentView(R.layout.activity_main_8);
 
         // --- Carga de Colecciones ---
-        serialesInvalidos = loadStringSetFromRaw(R.raw.seriales_invalidos);
-        firmwaresActuales = loadStringSetFromRaw(R.raw.firmwares_actuales);
-        firmwaresCriticos = loadStringSetFromRaw(R.raw.firmwares_criticos);
-        firmwaresObsoletos = loadStringSetFromRaw(R.raw.firmwares_obsoletos);
+        serialesInvalidos = loadStringSetFromRaw(R.raw.seriales_con_tres_recuperos);
+        firmwaresActuales = loadStringSetFromRaw(R.raw.firmwares_version_actual);
+        firmwaresCriticos = loadStringSetFromRaw(R.raw.firmwares_version_critica);
+        firmwaresObsoletos = loadStringSetFromRaw(R.raw.firmwares_version_anterior);
 
         // 1. INICIALIZACIÓN DE VISTAS Y ACTUALIZACIÓN
         progressBar = findViewById(R.id.progressBar);

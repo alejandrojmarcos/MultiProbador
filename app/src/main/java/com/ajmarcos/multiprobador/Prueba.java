@@ -126,7 +126,7 @@ public class Prueba {
 
             Log.d(TAG,"button enviar presionado");
 
-            enviar();
+            //enviar();
             enviarResultadosPorCorreo();
         });
 
